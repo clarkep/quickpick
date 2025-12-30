@@ -585,8 +585,8 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 		c3);
 	add_text(st->main_scene, st->text_font_medium, "H", harr_end.x+18*dpi, harr_end.y-2*dpi,
 		st->text_color);
-	add_circle_arc(st->main_scene, x, y, r+harr_d+harr_w/2, 2*F_PI*harr_ang1/360.0f, 2*F_PI*harr_ang2/360.0f,
-		30, 2.0f*dpi, st->text_color);
+	add_circle_arc(st->main_scene, x, y, r+harr_d+harr_w/2, 2*F_PI*harr_ang1/360.0f,
+		2*F_PI*harr_ang2/360.0f, 30, 2.0f*dpi, st->text_color);
 }
 
 // TODO: parameter for 512 vs etc ?
@@ -672,8 +672,8 @@ bool tab_select(Tab_Select *self, Vector2 pos, enum cursor_state cs)
 	add_rounded_quad_outline(st->main_scene, right_corners, right_rounded, rnd, segs, 1.0f,
 		self->border_color);
 	text[0] = self->labels[2];
-	add_text(st->main_scene, st->text_font_small, text, last_x + (last_w - st->small_char_width)/2.0,
-		text_y, text_color3);
+	add_text(st->main_scene, st->text_font_small, text,
+		last_x + (last_w - st->small_char_width)/2.0, text_y, text_color3);
 
 	add_rectangle(st->main_scene, x_mid, self->y, tw, self->h, color2);
 	add_rectangle_outline(st->main_scene, x_mid, self->y, tw, self->h, 1*dpi,
@@ -765,7 +765,8 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 		add_text(st->main_scene, st->text_font_medium, &text[d_i+d_chars], x, text_y,
 			st->text_color);
 	} else {
-		int n_chars = snprintf(text, 20, self->fmt, self->input_active ? self->input_n : self->value);
+		int n_chars = snprintf(text, 20, self->fmt,
+			self->input_active ? self->input_n : self->value);
 		add_text(st->main_scene, st->text_font_medium, text, self->x, text_y,
 			st->text_color);
 	}
@@ -774,8 +775,8 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 	if ((hit && cs != CURSOR_DOWN) || self->dragging) {
 		hovered = true;
 	}
-	// xx self->dragging here ensures that the click that's ending now started on the widget, but not that
-	// it never left.
+	// xx self->dragging here ensures that the click that's ending now started on the widget, but
+	// not that it never left.
 	if (hit && cs == CURSOR_STOP && self->clicking) {
 		self->selected = true;
 	}
@@ -787,8 +788,12 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 		self->clicking = false;
 	}
 	if (self->selected && key) {
-		int key_num = (key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_0) ? ((key-SDL_SCANCODE_1+1)%10)
-			: (key >= SDL_SCANCODE_KP_1 && key <= SDL_SCANCODE_KP_0 ? ((key-SDL_SCANCODE_KP_1+1)%10) : -1);
+		int key_num = 1;
+		if (key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_0) {
+			key_num = (key-SDL_SCANCODE_1+1) % 10;
+		} else if (key >= SDL_SCANCODE_KP_1 && key <= SDL_SCANCODE_KP_0) {
+			key_num = (key-SDL_SCANCODE_KP_1+1) % 10;
+		}
 		if (!self->input_active && key_num >= 0) {
 			// This breaks input if self->min > 9, but that doesn't apply to us and would require
 			// some special logic.
@@ -827,7 +832,8 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 		self->dragging = false;
 	}
 	if (self->dragging) {
-		new_value = self->drag_start_value + (-(pos.y - self->drag_start_y) / (self->drag_pixels_per_value));
+		new_value = self->drag_start_value
+			+ (-(pos.y - self->drag_start_y) / (self->drag_pixels_per_value));
 		if (self->wrap_around) {
 			if (new_value < self->min) {
 				new_value = self->max + 1 - (self->min - new_value) % (self->max + 1 - self->min);
@@ -946,12 +952,17 @@ void draw_ui_and_respond_input(struct state *st)
 	int out_ind_bottom_x = (st->screenWidth - out_ind_bottom_w) / 2.0f;
 	int out_ind_top_y = 0;
 	int out_ind_bottom_y = out_ind_top_y + out_ind_h;
-	Vector2 out_ind_verts[4] = { { out_ind_bottom_x, out_ind_bottom_y }, { out_ind_bottom_x + out_ind_bottom_w, out_ind_bottom_y},
-	{ out_ind_top_x + out_ind_top_w, out_ind_top_y }, { out_ind_top_x, out_ind_top_y }};
+	Vector2 out_ind_verts[4] = {
+		{ out_ind_bottom_x, out_ind_bottom_y },
+		{ out_ind_bottom_x + out_ind_bottom_w, out_ind_bottom_y},
+		{ out_ind_top_x + out_ind_top_w, out_ind_top_y },
+		{ out_ind_top_x, out_ind_top_y }
+	};
 	bool out_ind_rounded[4] = { true, true, false, false };
 	Vector4 out_ind_bgcolor = hex2color(0x303030c0);
 	if (st->outfile.path) {
-		i32 text_x = out_ind_bottom_x + (out_ind_bottom_w - st->outfile.shortened_path_len*(st->small_char_width+1.0*dpi))/2.0f;
+		i32 text_x = out_ind_bottom_x +
+			(out_ind_bottom_w - st->outfile.shortened_path_len*(st->small_char_width+1.0*dpi))/2.0f;
 		i32 text_y = out_ind_top_y + out_ind_h/2.0f + FONT_SMALL_PX*CENTER_EM;
 		add_rounded_quad(st->main_scene, out_ind_verts, out_ind_rounded, 12*dpi, 12,
 			out_ind_bgcolor);
@@ -971,12 +982,14 @@ void draw_ui_and_respond_input(struct state *st)
 	int grad_circle_y = grad_square_y + 512*dpi/2;
 	int grad_circle_r = 512*dpi/2;
 	if (st->mode == 0) {
-		draw_gradient_square_rgb(st, grad_square_x, grad_square_y, 512*dpi, st->which_fixed, st->fixed_value);
+		draw_gradient_square_rgb(st, grad_square_x, grad_square_y, 512*dpi, st->which_fixed,
+			st->fixed_value);
 		draw_axes(grad_square_x, grad_square_y, grad_x_axis_h, grad_y_axis_w, st);
 	} else {
 		if (st->which_fixed == 2) {
 			grad_square = false;
-			draw_gradient_circle_and_axes(grad_circle_x, grad_circle_y, grad_circle_r, st->fixed_value, st);
+			draw_gradient_circle_and_axes(grad_circle_x, grad_circle_y, grad_circle_r,
+				st->fixed_value, st);
 		} else {
 			draw_gradient_square_hsv(st, grad_square_x, grad_square_y, 512*dpi, st->which_fixed,
 				st->fixed_value);
@@ -1015,7 +1028,8 @@ void draw_ui_and_respond_input(struct state *st)
 			if (grad_square) {
 				st->x_value = MIN(MAX((pos.x - x_adj - grad_square_x) / (512*dpi), 0.0f), 1.0f);
 				// xx off by one?
-				st->y_value = MIN(MAX((grad_square_y + 512*dpi - pos.y + y_adj) / (512*dpi), 0.0f), 1.0f);
+				st->y_value = MIN(MAX((grad_square_y + 512*dpi - pos.y + y_adj) / (512*dpi), 0.0f),
+					1.0f);
 			} else {
 				int x_res = pos.x -x_adj - (grad_square_x + 512*dpi/2);
 				int y_res = pos.y - y_adj - (grad_square_y + 512*dpi/2);
@@ -1112,11 +1126,12 @@ void draw_ui_and_respond_input(struct state *st)
 	// main button
 	static float main_button_hover_v = 0;
 	float hov_bright = 0.4f;
-	Vector4 fixed_button_color = color_brightness(light_text_indication_color, main_button_hover_v * hov_bright);
+	Vector4 fixed_button_color = color_brightness(light_text_indication_color,
+		main_button_hover_v * hov_bright);
 	add_rectangle(st->main_scene, main_button_x, main_button_y, main_button_w, main_button_h,
 		fixed_button_color);
-	add_rectangle_outline(st->main_scene, main_button_x, main_button_y, main_button_w, main_button_h,
-		1*dpi, buttons_border_color);
+	add_rectangle_outline(st->main_scene, main_button_x, main_button_y, main_button_w,
+		main_button_h, 1*dpi, buttons_border_color);
 	i32 main_button_text_x = main_button_x + main_button_w/2.0f-st->large_char_width/2.0f;
 	i32 main_button_text_y = main_button_y + main_button_h/2.0f+FONT_LARGE_PX*CENTER_EM;
 	add_text(st->main_scene, st->text_font_large, color_strings[st->mode][st->which_fixed],
@@ -1145,8 +1160,8 @@ void draw_ui_and_respond_input(struct state *st)
 	{
 		int bar_h = 8*dpi;
 		int circle_r = 15*dpi;
-		add_rounded_rectangle(st->main_scene, val_slider_x, val_slider_y-bar_h/2.0f, val_slider_w, bar_h,
-			3.0f, 10, st->text_color);
+		add_rounded_rectangle(st->main_scene, val_slider_x, val_slider_y-bar_h/2.0f, val_slider_w,
+			bar_h, 3.0f, 10, st->text_color);
 		Vector2 circle_center = {  };
 		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, 15*dpi,
 			30, fixed_indication_color);
@@ -1172,8 +1187,8 @@ void draw_ui_and_respond_input(struct state *st)
 	int r_select_y = val_slider_y + 90*dpi;
 	static Number_Select r_num_select;
 	r_num_select.value = cur_color.x * 255.0f;
-	if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt,
-		r_select_x, r_select_y, rgb_select_w, 30*dpi, 800.0f / 256.0f, pos, st->cursor_state, key)) {
+	if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt, r_select_x,
+		r_select_y, rgb_select_w, 30*dpi, 800.0f / 256.0f, pos, st->cursor_state, key)) {
 		rgb_num_select_changed = true;
 	}
 	static Number_Select g_num_select;
@@ -1341,7 +1356,8 @@ SDL_Surface* surface_from_memory(const u8* buffer, int size, u8 **bmp) {
 	int x, y, channels;
 	*bmp = stbi_load_from_memory (buffer, size, &x, &y, &channels, 4);
 
-    SDL_Surface* res = SDL_CreateRGBSurfaceFrom(*bmp, x, y, 32, x*4, 0xff, 0xff00, 0xff0000, 0xff000000);
+    SDL_Surface* res = SDL_CreateRGBSurfaceFrom(*bmp, x, y, 32, x*4, 0xff, 0xff00, 0xff0000,
+    	0xff000000);
     if (!res) {
         fprintf(stderr, "SDL_CreateRGBSurfaceFrom failed: %s\n", SDL_GetError());
         return NULL;
@@ -1415,7 +1431,8 @@ int main(int argc, char *argv[])
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
 	u8 *bmp;
-	SDL_Surface *icon_surface = surface_from_memory(quickpick_icon_png, quickpick_icon_png_len, &bmp);
+	SDL_Surface *icon_surface = surface_from_memory(quickpick_icon_png, quickpick_icon_png_len,
+		&bmp);
 
 	st->window = SDL_CreateWindow("QuickPick",
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -1447,10 +1464,8 @@ int main(int argc, char *argv[])
 	// glEnable(GL_BLEND);
 	// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	// st->hsv_grad_shader = create_shader_program(hsv_grad_vertex_shader, hsv_grad_fragment_shader);
-
-    // The charset for our small font includes the default ASCII characters, and anything in the outfile
-    // name which will be displayed at the top of the window.
+    // The charset for our small font includes the default ASCII characters, and anything in the
+    // outfile name which will be displayed at the top of the window.
 	u32 *small_charset = malloc((128 + st->outfile.shortened_path_len)*sizeof(u32));
 	u32 small_charset_n = 0;
     for (i32 i=0x20; i<0x7f; i++) {
@@ -1485,12 +1500,14 @@ int main(int argc, char *argv[])
 			update_color_or_mode(st, st->mode, st->which_fixed, ci);
 		} else {
 			// since we failed to read, we probably shouldn't write
-			fprintf(stderr, "[QUICKPICK WARNING] Failed to find a valid rrggbb(or #rrggbb) color at %s byte offset %llu, so not writing "
-				"to the file.\n", st->outfile.path, st->outfile.offset);
+			fprintf(stderr, "[QUICKPICK WARNING] Failed to find a valid rrggbb(or #rrggbb) color at"
+				" %s byte offset %llu, so not writing to the file.\n", st->outfile.path,
+				st->outfile.offset);
 			st->outfile.path = NULL;
 		}
 		u64 codepoints_len;
-		// TODO: Windows uses UTF-16, not UTF-8, and may need special calls to retrieve unicode cli args.
+		// TODO: Windows uses UTF-16, not UTF-8, and may need special calls to retrieve unicode cli
+		// args.
 		u32 *codepoints = decode_string(spath, &codepoints_len);
 		if (codepoints) {
 		    for (i32 i=0; i<codepoints_len; i++) {
