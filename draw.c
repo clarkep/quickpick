@@ -1,5 +1,5 @@
 /*
-Last updated 2025-12-29.
+Last updated 2026-01-03.
 */
 
 #include <stdio.h>
@@ -1258,8 +1258,10 @@ i32 load_image_from_memory(GL_Scene *scene, const void *data, u64 data_size, con
         img_data = (u32 *) stbi_load_from_memory(data, data_size, &img_w, &img_h,
             &channels_in_file, 4);
     } else if (strcmp(type, "svg")==0) {
-        NSVGimage* image;
-        image = nsvgParse((char *) data, "px", 96);
+        u8* svg_copy = malloc(data_size + 1);
+        memcpy(svg_copy, data, data_size);
+        svg_copy[data_size] = 0;
+        NSVGimage* image = nsvgParse((char *) svg_copy, "px", 96);
         img_w = image->width;
         img_h = image->height;
 
@@ -1269,10 +1271,23 @@ i32 load_image_from_memory(GL_Scene *scene, const void *data, u64 data_size, con
         img_data = malloc(img_w*img_h*4);
         // Rasterize
         nsvgRasterize(rast, image, 0,0,1, (u8 *) img_data, img_w, img_h, img_w*4);
+        free(svg_copy);
     } else {
         return -1;
     }
 
+    i32 res = load_bitmap(scene, img_data, img_w, img_h, img_w*4);
+    free(img_data);
+    return res;
+
+}
+
+i32 load_bitmap(GL_Scene *scene, const void *data, i32 width, i32 height, i32 bytes_per_row)
+{
+    i32 img_w = width;
+    i32 img_h = height;
+    u32 *img_data = (u32 *) data;
+    i32 pix_per_row = bytes_per_row / 4;
     i32 max_texture_size; //1d 2d textures
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
     if (scene->cur_image_texture.texture_i < 0) {
@@ -1323,7 +1338,7 @@ i32 load_image_from_memory(GL_Scene *scene, const void *data, u64 data_size, con
         i32 tex_row = pen_y + img_h - r - 1;
         for (i32 c=0; c<img_w; c++) {
             i32 tex_col = pen_x + c;
-            tex_data[tex_row*tex_w + tex_col] = img_data[r*img_w + c];
+            tex_data[tex_row*tex_w + tex_col] = img_data[r*pix_per_row + c];
         }
     }
 
@@ -1332,8 +1347,6 @@ i32 load_image_from_memory(GL_Scene *scene, const void *data, u64 data_size, con
     glTexSubImage2D(GL_TEXTURE_2D, 0, pen_x, pen_y, img_w, img_h, GL_RGBA, GL_UNSIGNED_BYTE,
         &tex_data[(pen_y * tex_w) + pen_x]);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-
-    free(img_data);
 
     Bitmap_Dynarray *bitmaps = (Bitmap_Dynarray *) scene->bitmaps;
     i32 res = bitmaps->length;

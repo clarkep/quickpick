@@ -23,14 +23,19 @@ License: GPL 3(see LICENSE)
 #include <SDL2/SDL.h>
 #include <glad/glad.h>
 
-// include only the declarations for stb_image because the implementation is included by draw.c
+// include only the declarations for stb_image and nanosvg because the implementations are included
+// by draw.c
 #include "stb_image.h"
+#include "nanosvg.h"
+#include "nanosvgrast.h"
 
 #include "util.h"
 #include "draw.h"
 
 #include "font/noto_sans_mono.h"
 #include "quickpick_icon.h"
+// #include "menu_24dp_material.h"
+// #include "settings_24dp_material.h"
 
 #define WRITE_INTERVAL 0.5f
 #define FONT_SMALL_PX 17*dpi
@@ -79,6 +84,8 @@ typedef struct state {
 	i32 text_font_small;
 	i32 text_font_medium;
 	i32 text_font_large;
+// 	i32 menu_icon;
+// 	i32 settings_icon;
 	int small_char_width;
 	int medium_char_width;
 	int large_char_width;
@@ -396,9 +403,6 @@ struct color_info current_color(struct state *st)
 void write_color_to_file(struct state *st, Vector4 color)
 {
 	char color_text[10];
-	sprintf(color_text, "%02x%02x%02x", (int)(color.x*255.0f), (int)(color.y*255.0f),
-		(int) (color.z*255.0f));
-
 	FILE *f = fopen(st->outfile.path, "r+b");
 	assertf(f, "Failed to open file: %s.\n", st->outfile.path);
 	int res = fseek(f, st->outfile.offset, SEEK_SET);
@@ -944,6 +948,9 @@ void draw_ui_and_respond_input(struct state *st)
 		light_text_indication_color = (Vector4) { b, b, b, 1.0f };
 	}
 
+	// menu_icon
+	// add_image(st->main_scene, st->menu_icon, 10*dpi, 30*dpi);
+
 	// output file indicator
 	int out_ind_top_w = 512*dpi;
 	int out_ind_bottom_w = 462*dpi;
@@ -1322,6 +1329,33 @@ char *usage_str =
 "  --file FILE     choose a file to output to; alternative to file@offset\n"
 "  --offset N      choose an offset in FILE; alternative to file@offset\n";
 
+// nanosvg wants byte order RGBA, so (little endian) hex is 0xaabbggrr.
+u32 color2abgrhex(Vector4 color) {
+	return ((u32) color.w << 24) + ((u32) color.z << 16) + ((u32) color.y << 8) + ((u32) color.x);
+}
+
+// An icon must have just two shapes: a background square and the foreground shape.
+i32 load_icon_svg_with_color(GL_Scene *scene, const void *data, u64 data_len, Vector4 color)
+{
+	u8* svg_copy = malloc(data_len + 1);
+	memcpy(svg_copy, data, data_len);
+	svg_copy[data_len] = 0;
+	NSVGimage* image = nsvgParse((char *) svg_copy, "px", 96);
+	i32 img_w = image->width;
+	i32 img_h = image->height;
+
+	NSVGshape *gear = image->shapes[0].next;
+	gear->fill.color = color2abgrhex(color);
+
+	struct NSVGrasterizer* rast = nsvgCreateRasterizer();
+	void *img_data = malloc(img_w*img_h*4);
+	nsvgRasterize(rast, image, 0,0,1, (u8 *) img_data, img_w, img_h, img_w*4);
+	i32 res = load_bitmap(scene, img_data, img_w, img_h, img_w*4);
+	free(svg_copy);
+	free(img_data);
+	return res;
+}
+
 void init_for_dpi(struct state *st, float dpi, float old_dpi, u32 *small_charset,
 	u32 small_charset_n)
 {
@@ -1330,10 +1364,18 @@ void init_for_dpi(struct state *st, float dpi, float old_dpi, u32 *small_charset
 	int new_target_w = st->screenWidth * ratio;
 	int new_target_h = st->screenHeight * ratio;
 	if (new_target_w  != st->screenWidth) {
-		SDL_SetWindowSize(st->window, new_target_w, new_target_h);
-		st->screenWidth = new_target_w;
-		st->screenHeight = new_target_h;
+		// SDL_SetWindowSize(st->window, new_target_w, new_target_h);
+		// st->screenWidth = new_target_w;
+		// st->screenHeight = new_target_h;
 	}
+
+	if (st->main_scene) {
+		destroy_scene(st->main_scene);
+		destroy_scene(st->hsv_grad_scene);
+	}
+	st->main_scene = create_scene(NULL, NULL, 10, 10000, true);
+	st->hsv_grad_scene = create_scene(hsv_grad_vertex_shader, hsv_grad_fragment_shader,
+		10, 361*3, true);
 
 	st->text_font_small = load_font_from_memory(st->main_scene, noto_sans_mono,
 		noto_sans_mono_len, FONT_SMALL_PX, small_charset, small_charset_n);
@@ -1341,6 +1383,11 @@ void init_for_dpi(struct state *st, float dpi, float old_dpi, u32 *small_charset
 		noto_sans_mono_len, FONT_MEDIUM_PX, NULL, 0);
 	st->text_font_large = load_font_from_memory(st->main_scene, noto_sans_mono,
 		noto_sans_mono_len, FONT_LARGE_PX, NULL, 0);
+
+	// st->menu_icon = load_image_from_memory(st->main_scene, menu_24dp_material_svg,
+	// 	menu_24dp_material_svg_len, "svg");
+	// st->settings_icon = load_image_from_memory(st->main_scene, settings_24dp_material_svg,
+	// 	settings_24dp_material_svg_len, "svg");
 
 	st->medium_label_width = measure_text_width(st->main_scene, st->text_font_medium,
 		"r:255 g:255 b:255 hex:#ffffff");
@@ -1426,6 +1473,7 @@ int main(int argc, char *argv[])
 
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
@@ -1538,15 +1586,13 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	st->main_scene = create_scene(NULL, NULL, 10, 10000, true);
-	st->hsv_grad_scene = create_scene(hsv_grad_vertex_shader, hsv_grad_fragment_shader,
-		10, 361*3, true);
-
 	int drawable_w, drawable_h;
 	SDL_GL_GetDrawableSize(st->window, &drawable_w, &drawable_h);
 	int window_w, window_h;
 	SDL_GetWindowSize(st->window, &window_w, &window_h);
 	st->dpi = (float)drawable_w / window_w;
+	st->screenWidth = drawable_w;
+	st->screenHeight = drawable_h;
 
 	float dpi = st->dpi;
 	init_for_dpi(st, st->dpi, 1.0f, small_charset, small_charset_n);
@@ -1577,8 +1623,8 @@ int main(int argc, char *argv[])
 				st->key_pressed = event.key.keysym.scancode;
 				break;
 			case SDL_MOUSEMOTION:
-				st->mouse_x = event.motion.x;
-				st->mouse_y = event.motion.y;
+				st->mouse_x = event.motion.x * dpi;
+				st->mouse_y = event.motion.y * dpi;
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				if (event.button.button == SDL_BUTTON_LEFT) {
@@ -1606,6 +1652,8 @@ int main(int argc, char *argv[])
 		if (new_dpi != st->dpi) {
 			init_for_dpi(st, new_dpi, st->dpi, small_charset, small_charset_n);
 		}
+		st->screenWidth = drawable_w;
+		st->screenHeight = drawable_h;
 
 		// Setup viewport and projection
 		glViewport(0, 0, drawable_w, drawable_h);

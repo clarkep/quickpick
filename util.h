@@ -47,11 +47,13 @@ Vector2 mult_cv2(float c, Vector2 v);
 
 void debug(const char *fmt, ...);
 
-void assertf(bool value, const char *fmt, ...);
+void errexit_unless(bool value, const char *fmt, ...);
 
 void errexit(char *fmt, ...);
 
 u32 *decode_string(const char *s, u64 *out_len);
+
+#define assertf errexit_unless
 
 /************************************** Dynarray **************************************************/
 

@@ -29,7 +29,7 @@ Vector2 mult_cv2(float c, Vector2 v)
     return (Vector2) { c*v.x, c*v.y };
 }
 
-void assertf(bool value, const char *fmt, ...)
+void errexit_unless(bool value, const char *fmt, ...)
 {
 	if (!value) {
 		if (fmt) {

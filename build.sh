@@ -1,2 +1,2 @@
 #!/bin/bash
-gcc -g -o quickpick quickpick.c draw.c util.c glad.c -Iinclude $(pkg-config --libs --cflags freetype2) $(pkg-config --libs --cflags sdl2) -lGL -lm
+gcc -g -o quickpick quickpick.c draw.c util.c glad.c profiler.c -Iinclude $(pkg-config --libs --cflags freetype2) $(pkg-config --libs --cflags sdl2) -lGL -lm # -framework OpenGL -lm
