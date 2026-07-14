@@ -403,12 +403,16 @@ struct color_info current_color(struct state *st)
 void write_color_to_file(struct state *st, Vector4 color)
 {
 	char color_text[10];
+	snprintf(color_text, 10, "%02x%02x%02x", (int)(color.x*255.0f), (int)(color.y*255.0f),
+		(int) (color.z*255.0f));
 	FILE *f = fopen(st->outfile.path, "r+b");
-	assertf(f, "Failed to open file: %s.\n", st->outfile.path);
+	if (!f)
+		fprintf(stderr, "Failed to open file: %s.\n", st->outfile.path);
 	int res = fseek(f, st->outfile.offset, SEEK_SET);
-	assertf(!res, "Failed to write byte %lu in file %s.\n", st->outfile.offset, st->outfile.path);
+	if (res)
+		fprintf(stderr, "Failed to write byte %llu in file %s.\n", st->outfile.offset, st->outfile.path);
 	fwrite(color_text, 1, 6, f);
-	printf("Wrote %s to %s byte %llu.\n", color_text, st->outfile.path, st->outfile.offset);
+	fprintf(stderr, "Wrote %s to %s byte %llu.\n", color_text, st->outfile.path, st->outfile.offset);
 	fclose(f);
 }
 
@@ -958,16 +962,17 @@ void draw_ui_and_respond_input(struct state *st)
 	int out_ind_top_x = (st->screenWidth - out_ind_top_w) / 2.0f;
 	int out_ind_bottom_x = (st->screenWidth - out_ind_bottom_w) / 2.0f;
 	int out_ind_top_y = 0;
-	int out_ind_bottom_y = out_ind_top_y + out_ind_h;
-	Vector2 out_ind_verts[4] = {
-		{ out_ind_bottom_x, out_ind_bottom_y },
-		{ out_ind_bottom_x + out_ind_bottom_w, out_ind_bottom_y},
-		{ out_ind_top_x + out_ind_top_w, out_ind_top_y },
-		{ out_ind_top_x, out_ind_top_y }
-	};
-	bool out_ind_rounded[4] = { true, true, false, false };
-	Vector4 out_ind_bgcolor = hex2color(0x303030c0);
+	int out_ind_bottom_y = 0;
 	if (st->outfile.path) {
+		out_ind_bottom_y = out_ind_top_y + out_ind_h;
+		Vector2 out_ind_verts[4] = {
+			{ out_ind_bottom_x, out_ind_bottom_y },
+			{ out_ind_bottom_x + out_ind_bottom_w, out_ind_bottom_y},
+			{ out_ind_top_x + out_ind_top_w, out_ind_top_y },
+			{ out_ind_top_x, out_ind_top_y }
+		};
+		bool out_ind_rounded[4] = { true, true, false, false };
+		Vector4 out_ind_bgcolor = hex2color(0x303030c0);
 		i32 text_x = out_ind_bottom_x +
 			(out_ind_bottom_w - st->outfile.shortened_path_len*(st->small_char_width+1.0*dpi))/2.0f;
 		i32 text_y = out_ind_top_y + out_ind_h/2.0f + FONT_SMALL_PX*CENTER_EM;
@@ -981,7 +986,8 @@ void draw_ui_and_respond_input(struct state *st)
 	int grad_y_axis_w = 30*dpi;
 	int grad_x_axis_h = 30*dpi;
 	int grad_square_x = (st->screenWidth - 512*dpi)/2;
-	int grad_square_y = out_ind_bottom_y+(st->outfile.path ? 10*dpi : 0)+20*dpi;
+	// The entire color picker UI is around 775 pixels tall; center it with slightly more margin below.
+	int grad_square_y = out_ind_bottom_y + (st->screenHeight - out_ind_bottom_y - 775*dpi) * 0.4f;
 	int grad_square_y_end = grad_square_y + 512*dpi;
 	int grad_square_x_end = grad_square_x + 512*dpi;
 	bool grad_square = true;
@@ -1469,29 +1475,29 @@ int main(int argc, char *argv[])
 		if (argv[i][0] == '-' && argv[i][1] == '-') {
 			char *longarg = &argv[i][2];
 			if (strcmp(longarg, "file")==0) {
-				assertf(i+1<argc && !st->outfile.path, usage_str);
+				errexit_unless(i+1<argc && !st->outfile.path, usage_str);
 				st->outfile.path = argv[i+1];
 				i++;
 			} else if (strcmp(longarg, "offset")==0) {
-				assertf(i+1<argc && !st->outfile.offset, usage_str);
+				errexit_unless(i+1<argc && !st->outfile.offset, usage_str);
 				errno = 0;
 				st->outfile.offset = strtoull(argv[i+1], NULL, 10);
-				assertf(!errno, usage_str);
+				errexit_unless(!errno, usage_str);
 				i++;
 			}
 		} else if (argv[i][0] == '-') {
 			errexit(usage_str);
 		} else {
-			assertf(!st->outfile.path, usage_str);
+			errexit_unless(!st->outfile.path, usage_str);
 			char *sep = strchr(arg, '@');
-			assertf(sep, usage_str);
+			errexit_unless(sep, usage_str);
 			int path_len = sep - arg;
 			st->outfile.path = malloc(path_len+1);
 			memcpy(st->outfile.path, arg, path_len);
 			st->outfile.path[path_len] = '\0';
 			errno = 0;
 			st->outfile.offset = strtoul(sep+1, NULL, 10);
-			assertf(!errno, usage_str);
+			errexit_unless(!errno, usage_str);
 			i++;
 		}
 	}
