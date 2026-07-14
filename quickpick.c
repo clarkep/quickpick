@@ -598,15 +598,14 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 }
 
 // TODO: parameter for 512 vs etc ?
-void draw_axes(int x, int y, int w, int h, struct state *st)
+void draw_axes(int x, int y, int w, int h, float scale, struct state *st)
 {
-	float dpi = st->dpi;
-	int tick_sep = 64*dpi;
-	int tick_width = 2*dpi;
+	int tick_sep = 64*scale;
+	int tick_width = 2*scale;
 	int y_tick_len = w/4;
 	int x_tick_len = h/4;
 	Vector4 tick_color = st->text_color;
-	int label_size = 30*dpi;
+	int label_size = 30*scale;
 	Vector4 label_color = st->text_color;
 
 	char *x_label;
@@ -620,17 +619,17 @@ void draw_axes(int x, int y, int w, int h, struct state *st)
 	}
 	// x axis label
 	add_text(st->main_scene, st->text_font_medium, x_label,
-			   x + 512*dpi/2 - label_size, y + 512*dpi + h, label_color);
+			   x + 512*scale/2 - label_size, y + 512*scale + h, label_color);
 	// y axis label
 	add_text(st->main_scene, st->text_font_medium, y_label,
-			   x - h, y + 512*dpi/2, label_color);
+			   x - h, y + 512*scale/2, label_color);
 	// x axis
-	for (int ix = x; ix < (x+512*dpi); ix += tick_sep) {
-		add_rectangle(st->main_scene, ix, y+512*dpi, tick_width, x_tick_len, tick_color);
+	for (int ix = x; ix < (x+512*scale); ix += tick_sep) {
+		add_rectangle(st->main_scene, ix, y+512*scale, tick_width, x_tick_len, tick_color);
 	}
 	// y axis
-	for (int yi = 0; yi < (512*dpi); yi += tick_sep) {
-		add_rectangle(st->main_scene, x-y_tick_len, y + 512*dpi - yi - tick_width, y_tick_len,
+	for (int yi = 0; yi < (512*scale); yi += tick_sep) {
+		add_rectangle(st->main_scene, x-y_tick_len, y + 512*scale - yi - tick_width, y_tick_len,
 			tick_width, tick_color);
 	}
 }
@@ -954,11 +953,24 @@ void draw_ui_and_respond_input(struct state *st)
 
 	// menu_icon
 	// add_image(st->main_scene, st->menu_icon, 10*dpi, 30*dpi);
+	// int screen_min_dim = MIN(st->screenWidth, st->screenHeight);
+
+	// The scale computed here includes dpi scaling and potential scaling down to fit within the window.
+	// ui_h and ui_w depend on a bunch constants below, e.g. grad_x_axis_h; changing anything that
+	// changes the overal width or height requires an update here.
+	float ui_h = st->outfile.path ? 805*dpi : 775*dpi;
+	float ui_w = 532*dpi;
+	float scale = dpi;
+	if (st->screenHeight < ui_h || st->screenWidth < ui_w) {
+		float scaledown_h = (st->screenHeight / ui_h);
+		float scaledown_w = (st->screenWidth / ui_w);
+		scale = dpi * MIN(scaledown_w, scaledown_h);
+	}
 
 	// output file indicator
-	int out_ind_top_w = 512*dpi;
-	int out_ind_bottom_w = 462*dpi;
-	int out_ind_h = 30*dpi;
+	int out_ind_top_w = 512*scale;
+	int out_ind_bottom_w = 462*scale;
+	int out_ind_h = 30*scale;
 	int out_ind_top_x = (st->screenWidth - out_ind_top_w) / 2.0f;
 	int out_ind_bottom_x = (st->screenWidth - out_ind_bottom_w) / 2.0f;
 	int out_ind_top_y = 0;
@@ -974,84 +986,84 @@ void draw_ui_and_respond_input(struct state *st)
 		bool out_ind_rounded[4] = { true, true, false, false };
 		Vector4 out_ind_bgcolor = hex2color(0x303030c0);
 		i32 text_x = out_ind_bottom_x +
-			(out_ind_bottom_w - st->outfile.shortened_path_len*(st->small_char_width+1.0*dpi))/2.0f;
+			(out_ind_bottom_w - st->outfile.shortened_path_len*(st->small_char_width+1.0*scale))/2.0f;
 		i32 text_y = out_ind_top_y + out_ind_h/2.0f + FONT_SMALL_PX*CENTER_EM;
-		add_rounded_quad(st->main_scene, out_ind_verts, out_ind_rounded, 12*dpi, 12,
+		add_rounded_quad(st->main_scene, out_ind_verts, out_ind_rounded, 12*scale, 12,
 			out_ind_bgcolor);
 		add_text_utf32(st->main_scene, st->text_font_small, st->outfile.shortened_path_utf32,
 			text_x, text_y, WHITE);
 	}
 
-	// gradient
-	int grad_y_axis_w = 30*dpi;
-	int grad_x_axis_h = 30*dpi;
-	int grad_square_x = (st->screenWidth - 512*dpi)/2;
+	// gradient square or circle
+	int grad_y_axis_w = 30*scale;
+	int grad_x_axis_h = 30*scale;
+	int grad_square_x = MAX(grad_y_axis_w, (st->screenWidth - 512*scale)/2);
 	// The entire color picker UI is around 775 pixels tall; center it with slightly more margin below.
-	int grad_square_y = out_ind_bottom_y + (st->screenHeight - out_ind_bottom_y - 775*dpi) * 0.4f;
-	int grad_square_y_end = grad_square_y + 512*dpi;
-	int grad_square_x_end = grad_square_x + 512*dpi;
+	int grad_square_y = out_ind_bottom_y + (st->screenHeight - out_ind_bottom_y - 775*scale) * 0.4f;
+	int grad_square_y_end = grad_square_y + 512*scale;
+	int grad_square_x_end = grad_square_x + 512*scale;
 	bool grad_square = true;
-	int grad_circle_x = grad_square_x + 512*dpi/2;
-	int grad_circle_y = grad_square_y + 512*dpi/2;
-	int grad_circle_r = 512*dpi/2;
+	int grad_circle_x = grad_square_x + 512*scale/2;
+	int grad_circle_y = grad_square_y + 512*scale/2;
+	int grad_circle_r = 512*scale/2;
 	if (st->mode == 0) {
-		draw_gradient_square_rgb(st, grad_square_x, grad_square_y, 512*dpi, st->which_fixed,
+		draw_gradient_square_rgb(st, grad_square_x, grad_square_y, 512*scale, st->which_fixed,
 			st->fixed_value);
-		draw_axes(grad_square_x, grad_square_y, grad_x_axis_h, grad_y_axis_w, st);
+		draw_axes(grad_square_x, grad_square_y, grad_x_axis_h, grad_y_axis_w, scale, st);
 	} else {
 		if (st->which_fixed == 2) {
 			grad_square = false;
 			draw_gradient_circle_and_axes(grad_circle_x, grad_circle_y, grad_circle_r,
 				st->fixed_value, st);
 		} else {
-			draw_gradient_square_hsv(st, grad_square_x, grad_square_y, 512*dpi, st->which_fixed,
+			draw_gradient_square_hsv(st, grad_square_x, grad_square_y, 512*scale, st->which_fixed,
 				st->fixed_value);
-			draw_axes(grad_square_x, grad_square_y, grad_x_axis_h, grad_y_axis_w, st);
+			draw_axes(grad_square_x, grad_square_y, grad_x_axis_h, grad_y_axis_w, scale, st);
 		}
 	}
-	int cur_loc_sq_sz = 4*dpi;
+	int cur_loc_sq_sz = 4*scale;
 	// indicator circle
 	int ind_x, ind_y;
 	if (grad_square) {
-		ind_x = grad_square_x + st->x_value * (512*dpi);
-		ind_y = grad_square_y + 512*dpi - st->y_value * (512*dpi);
+		ind_x = grad_square_x + st->x_value * (512*scale);
+		ind_y = grad_square_y + 512*scale - st->y_value * (512*scale);
 	} else {
 		ind_x = grad_circle_x + grad_circle_r*st->y_value*cosf(st->x_value * 2*F_PI);
 		ind_y = grad_circle_y - grad_circle_r*st->y_value*sinf(st->x_value * 2*F_PI);
 	}
-	add_circle_outline(st->main_scene, ind_x, ind_y, 6*dpi, 20, 1*dpi, st->text_color);
-	int r2 = 4*dpi;
-	int r3 = 8*dpi;
-	add_line(st->main_scene, ind_x - r3, ind_y, ind_x - r2, ind_y, 1*dpi, st->text_color);
-	add_line(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*dpi, st->text_color);
-	add_line(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*dpi, st->text_color);
-	add_line(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*dpi, st->text_color);
+	add_circle_outline(st->main_scene, ind_x, ind_y, 6*scale, 20, 1*scale, st->text_color);
+	int r2 = 4*scale;
+	int r3 = 8*scale;
+	add_line(st->main_scene, ind_x - r3, ind_y, ind_x - r2, ind_y, 1*scale, st->text_color);
+	add_line(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*scale, st->text_color);
+	add_line(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*scale, st->text_color);
+	add_line(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*scale, st->text_color);
 	if (st->cursor_state == CURSOR_START || st->square_dragging) {
 		if (!st->square_dragging) {
-			Rectangle rec = {grad_square_x, grad_square_y, 512*dpi, 512*dpi};
-			Vector2 c = { grad_square_x + 512*dpi/2, grad_square_y + 512*dpi/2 };
+			Rectangle rec = {grad_square_x, grad_square_y, 512*scale, 512*scale};
+			Vector2 c = { grad_square_x + 512*scale/2, grad_square_y + 512*scale/2 };
 			if ((grad_square && CheckCollisionPointRec(pos, rec))
-				|| (!grad_square && CheckCollisionPointCircle(pos, c, 512*dpi/2))) {
+				|| (!grad_square && CheckCollisionPointCircle(pos, c, 512*scale/2))) {
 				st->square_dragging = true;
 			}
 		}
 		if (st->square_dragging) {
-			int y_adj = 3*dpi;
-			int x_adj = 2*dpi;
+			int y_adj = 3*scale;
+			int x_adj = 2*scale;
 			if (grad_square) {
-				st->x_value = MIN(MAX((pos.x - x_adj - grad_square_x) / (512*dpi), 0.0f), 1.0f);
+				st->x_value = MIN(MAX((pos.x - x_adj - grad_square_x) / (512*scale), 0.0f), 1.0f);
 				// xx off by one?
-				st->y_value = MIN(MAX((grad_square_y + 512*dpi - pos.y + y_adj) / (512*dpi), 0.0f),
+				st->y_value = MIN(MAX((grad_square_y + 512*scale - pos.y + y_adj) / (512*scale), 0.0f),
 					1.0f);
 			} else {
-				int x_res = pos.x -x_adj - (grad_square_x + 512*dpi/2);
-				int y_res = pos.y - y_adj - (grad_square_y + 512*dpi/2);
+				int x_res = pos.x -x_adj - (grad_square_x + 512*scale/2);
+				int y_res = pos.y - y_adj - (grad_square_y + 512*scale/2);
 				y_res = -y_res;
 				// theta
 				st->x_value = atan2(y_res, x_res) / (2*F_PI);
 				st->x_value = st->x_value < 0 ? 1.0 + st->x_value : st->x_value;
 				// r
-				st->y_value = MIN(MAX(sqrtf(x_res*x_res+y_res*y_res)/(512*dpi/2), 0.0), 1.0);
+				st->y_value = MIN(MAX(sqrtf(x_res*x_res+y_res*y_res)/(512*scale/2), 0.0), 1.0);
 			}
 			// xx check if we actually changed the color?
 			st->from_alternate_value = false;
@@ -1060,13 +1072,13 @@ void draw_ui_and_respond_input(struct state *st)
 
 	// fixed color buttons
 	int top_tabs_x = grad_square_x;
-	int top_tabs_y = grad_square_y_end + grad_x_axis_h + 10*dpi;
-	int top_tabs_h = 30*dpi;
-	int top_tabs_w = 95*dpi;
+	int top_tabs_y = grad_square_y_end + grad_x_axis_h + 10*scale;
+	int top_tabs_h = 30*scale;
+	int top_tabs_w = 95*scale;
 	int main_button_x = top_tabs_x;
 	int main_button_y = top_tabs_y + top_tabs_h;
 	int main_button_w = top_tabs_w;
-	int main_button_h = 75*dpi;
+	int main_button_h = 75*scale;
 	int ind_tabs_y = main_button_y + main_button_h;
 	Vector4 buttons_border_color = hex2color(0xb0b0b0ff);
 	// tabs
@@ -1144,7 +1156,7 @@ void draw_ui_and_respond_input(struct state *st)
 	add_rectangle(st->main_scene, main_button_x, main_button_y, main_button_w, main_button_h,
 		fixed_button_color);
 	add_rectangle_outline(st->main_scene, main_button_x, main_button_y, main_button_w,
-		main_button_h, 1*dpi, buttons_border_color);
+		main_button_h, 1*scale, buttons_border_color);
 	i32 main_button_text_x = main_button_x + main_button_w/2.0f-st->large_char_width/2.0f;
 	i32 main_button_text_y = main_button_y + main_button_h/2.0f+FONT_LARGE_PX*CENTER_EM;
 	add_text(st->main_scene, st->text_font_large, color_strings[st->mode][st->which_fixed],
@@ -1164,19 +1176,19 @@ void draw_ui_and_respond_input(struct state *st)
 	}
 
 	// fixed value slider
-	int val_slider_x = main_button_x + main_button_w + 30*dpi;
+	int val_slider_x = main_button_x + main_button_w + 30*scale;
 	// center vertically relative to two adjacent buttons
 	int val_slider_y = main_button_y + main_button_h / 2.0f;
 	int val_slider_w = grad_square_x_end - val_slider_x;
-	int val_slider_h = 60*dpi;
+	int val_slider_h = 60*scale;
 	int val_slider_offset = roundf(val_slider_w * ( (float) st->fixed_value ));
 	{
-		int bar_h = 8*dpi;
-		int circle_r = 15*dpi;
+		int bar_h = 8*scale;
+		int circle_r = 15*scale;
 		add_rounded_rectangle(st->main_scene, val_slider_x, val_slider_y-bar_h/2.0f, val_slider_w,
 			bar_h, 3.0f, 10, st->text_color);
 		Vector2 circle_center = {  };
-		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, 15*dpi,
+		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, 15*scale,
 			30, fixed_indication_color);
 		if (st->cursor_state == CURSOR_START || st->val_slider_dragging) {
 			if (!st->val_slider_dragging && CheckCollisionPointRec(pos,
@@ -1195,26 +1207,26 @@ void draw_ui_and_respond_input(struct state *st)
 
 	// rgb number selectors
 	bool rgb_num_select_changed = false;
-	int rgb_select_w = 6*(st->medium_char_width + 1.5*dpi);
+	int rgb_select_w = 6*(st->medium_char_width + 1.5*scale);
 	int r_select_x = (st->screenWidth - st->medium_label_width)/2.0f;
-	int r_select_y = val_slider_y + 90*dpi;
+	int r_select_y = val_slider_y + 90*scale;
 	static Number_Select r_num_select;
 	r_num_select.value = cur_color.x * 255.0f;
 	if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt, r_select_x,
-		r_select_y, rgb_select_w, 30*dpi, 800.0f / 256.0f, pos, st->cursor_state, key)) {
+		r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, pos, st->cursor_state, key)) {
 		rgb_num_select_changed = true;
 	}
 	static Number_Select g_num_select;
 	g_num_select.value = cur_color.y * 255.0f;
 	if (number_select_immargs(&g_num_select, "g:%d ", 0, 255, false, st, anim_vdt,
-		r_num_select.x+r_num_select.w, r_num_select.y, rgb_select_w, 30*dpi, 800.0f / 256.0f,
+		r_num_select.x+r_num_select.w, r_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
 		pos, st->cursor_state, key)) {
 		rgb_num_select_changed = true;
 	}
 	static Number_Select b_num_select;
 	b_num_select.value = cur_color.z * 255.0f;
 	if (number_select_immargs(&b_num_select, "b:%d ", 0, 255, false, st, anim_vdt,
-		g_num_select.x+g_num_select.w, g_num_select.y, rgb_select_w, 30*dpi, 800.0f / 256.0f,
+		g_num_select.x+g_num_select.w, g_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
 		pos, st->cursor_state, key)) {
 		rgb_num_select_changed = true;
 	}
@@ -1237,30 +1249,30 @@ void draw_ui_and_respond_input(struct state *st)
 		(int)(cur_color.z*255.0f));
 	int hex_label_x = b_num_select.x + b_num_select.w;
 	int hex_label_y = r_num_select.y + r_num_select.h/2.0f + FONT_MEDIUM_PX*CENTER_EM;
-	i32 font_h = 30*dpi;
+	i32 font_h = 30*scale;
 	add_text(st->main_scene, st->text_font_medium, value, hex_label_x, hex_label_y,
 		st->text_color);
 	// hsv number selectors
 	bool hsv_num_select_changed = false;
-	int hsv_select_w = 7*(st->medium_char_width + 1.5*dpi);
+	int hsv_select_w = 7*(st->medium_char_width + 1.5*scale);
 	static Number_Select h_num_select;
 	h_num_select.value = cur_hsv.x * 360.0f;
 	if (number_select_immargs(&h_num_select, "h:%d\xc2\xb0", 0, 359, true, st, anim_vdt,
-		r_num_select.x, r_num_select.y + 35*dpi, hsv_select_w, 30*dpi, 800.0f/360.0f,
+		r_num_select.x, r_num_select.y + 35*scale, hsv_select_w, 30*scale, 800.0f/360.0f,
 		pos, st->cursor_state, key)) {
 		hsv_num_select_changed = true;
 	}
 	static Number_Select s_num_select;
 	s_num_select.value = cur_hsv.y * 100.0f;
 	if (number_select_immargs(&s_num_select, "s:%d%% ", 0, 100, false, st, anim_vdt,
-		h_num_select.x+h_num_select.w, h_num_select.y, hsv_select_w, 30*dpi, 800.0f/100.0f,
+		h_num_select.x+h_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
 		pos, st->cursor_state, key)) {
 		hsv_num_select_changed = true;
 	}
 	static Number_Select v_num_select;
 	v_num_select.value = cur_hsv.z * 100.0f;
 	if (number_select_immargs(&v_num_select, "v:%d%% ", 0, 100, false, st, anim_vdt,
-		s_num_select.x+s_num_select.w, h_num_select.y, hsv_select_w, 30*dpi, 800.0f/100.0f,
+		s_num_select.x+s_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
 		pos, st->cursor_state, key)) {
 		hsv_num_select_changed = true;
 	}
@@ -1420,7 +1432,7 @@ SDL_Surface* surface_from_memory(const u8* buffer, int size, u8 **bmp) {
 }
 
 // Prevent UI from stoppping during an interactive resize on Windows.
-static int on_resize_watcher(void* data, SDL_Event* event) {
+int on_resize_watcher(void* data, SDL_Event* event) {
 	State *st = (State *) data;
 	if (event->type == SDL_WINDOWEVENT &&
 	  event->window.event == SDL_WINDOWEVENT_RESIZED) {
@@ -1564,7 +1576,7 @@ int main(int argc, char *argv[])
     // add its codepoints to the small charset.
 	if (st->outfile.path) {
 		int maxlen = 5 + (int) strlen(st->outfile.path) + 3 + 20 + 1;
-		char *spath = (char *) malloc(maxlen);
+		spath = (char *) malloc(maxlen);
 		int n = snprintf(spath, maxlen, "out: %s @ %llu", st->outfile.path, st->outfile.offset);
 
 		int str_n = MIN(maxlen-1, n);
