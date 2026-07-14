@@ -1412,6 +1412,39 @@ SDL_Surface* surface_from_memory(const u8* buffer, int size, u8 **bmp) {
 //    stbi_image_free(bmp);
     return res;
 }
+
+// Prevent UI from stoppping during an interactive resize on Windows.
+static int on_resize_watcher(void* data, SDL_Event* event) {
+	State *st = (State *) data;
+	if (event->type == SDL_WINDOWEVENT &&
+	  event->window.event == SDL_WINDOWEVENT_RESIZED) {
+		SDL_Window* win = SDL_GetWindowFromID(event->window.windowID);
+	}
+	int drawable_w, drawable_h;
+	int window_w, window_h;
+	// Check for DPI changes
+	SDL_GL_GetDrawableSize(st->window, &drawable_w, &drawable_h);
+	SDL_GetWindowSize(st->window, &window_w, &window_h);
+	float new_dpi = (float)drawable_w / window_w;
+	st->screenWidth = drawable_w;
+	st->screenHeight = drawable_h;
+
+	// Setup viewport and projection
+	glViewport(0, 0, drawable_w, drawable_h);
+
+	reset_scene(st->hsv_grad_scene);
+	reset_scene(st->main_scene);
+
+	draw_ui_and_respond_input(st);
+
+	if (st->hsv_grad_scene->n)
+		draw_scene(st->hsv_grad_scene);
+	draw_scene(st->main_scene);
+
+	SDL_GL_SwapWindow(st->window);
+  return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	struct state *st = (struct state *) calloc(1, sizeof(struct state));
@@ -1602,6 +1635,8 @@ int main(int argc, char *argv[])
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    SDL_AddEventWatch(on_resize_watcher, st);
+
 	bool running = true;
 	unsigned long long ticks_start = SDL_GetTicks64();
 	unsigned long long frames = 0;
@@ -1668,8 +1703,6 @@ int main(int argc, char *argv[])
 		draw_scene(st->main_scene);
 
 		SDL_GL_SwapWindow(st->window);
-		// XX measure frame time and subtract
-		SDL_Delay(16);
 
 		/*
 		frames++;
