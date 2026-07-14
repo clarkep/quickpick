@@ -2,8 +2,8 @@
 quickpick: a color picker
 
 By: Paul Clarke
-Created: 4/10/2024
-License: GPL 3(see LICENSE)
+Originally Created: 4/10/2024
+License: MIT(see LICENSE)
 */
 
 #ifdef _WIN32
