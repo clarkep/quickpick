@@ -195,13 +195,24 @@ Vector4 color_brightness(Vector4 c, float factor) {
 	};
 }
 
-Vector4 rgb_to_hsv(Vector4 c) {
+float max3f(float x, float y, float z)
+{
+	return (x > y) ? MAX(x, z) : MAX(y, z);
+}
+
+float min3f(float x, float y, float z)
+{
+	return (x < y) ? MIN(x, z) : MIN(y, z);
+}
+
+Vector4 rgb_to_hsv(Vector4 c)
+{
 	float r = c.x;
 	float g = c.y;
 	float b = c.z;
 
-	float max = MAX(MAX(r, g), b);
-	float min = MIN(MIN(r, g), b);
+	float max = max3f(r, g, b);
+	float min = min3f(r, g, b);
 	float delta = max - min;
 
 	Vector4 hsv;
@@ -216,6 +227,7 @@ Vector4 rgb_to_hsv(Vector4 c) {
 
 	hsv.y = (max > 0) ? (delta / max) : 0; // saturation
 
+	// hue
 	if (r >= max) {
 		hsv.x = (g - b) / delta;
 	} else if (g >= max) {
@@ -247,7 +259,92 @@ Vector4 hsv_to_rgb(Vector4 hsv)
 	else if (h < 5.0f/6.0f) { r = x; g = 0; b = c; }
 	else { r = c; g = 0; b = x; }
 
-	return (Vector4){ r + m, g + m, b + m, hsv.w };
+	return (Vector4) { r + m, g + m, b + m, hsv.w };
+}
+
+Vector4 rgb_to_hsl(Vector4 c)
+{
+	float r = c.x;
+	float g = c.y;
+	float b = c.z;
+
+	float min = min3f(r, g, b);
+	float max = max3f(r, g, b);
+	float delta = max - min;
+
+	Vector4 hsl;
+	hsl.w = c.w;
+	hsl.z = (max + min) * 0.5f; // lightness
+
+	if (delta < 0.00001f) {
+		hsl.x = 0.0f;
+		hsl.y = 0.0f;
+		return hsl;
+	}
+
+	hsl.y = (hsl.z > 0.0f && hsl.z < 1.0f) ? delta / (1 - fabsf(2*hsl.z - 1)) : 0.0f; // saturation
+
+	// hue
+	if (r >= max) {
+		hsl.x = (g - b) / delta;
+	} else if (g >= max) {
+		hsl.x = 2.0f + (b - r) / delta;
+	} else {
+		hsl.x = 4.0f + (r - g) / delta;
+	}
+
+	hsl.x /= 6.0f;
+	if (hsl.x < 0) hsl.x += 1.0f;
+
+	return hsl;
+}
+
+Vector4 hsl_to_rgb(Vector4 hsl)
+{
+	float h = hsl.x;
+	float s = hsl.y;
+	float l = hsl.z;
+
+	float c = (1 - fabsf(2*l - 1))*s;
+	float x = c * (1 - fabsf(fmodf(h * 6.0f, 2) - 1));
+	float m = l - c / 2;
+
+	float r, g, b;
+	if (h < 1.0f / 6.0f) { r = c; g = x; b = 0; }
+	else if (h < 2.0f / 6.0f) { r = x; g = c; b = 0; }
+	else if (h < 3.0f / 6.0f) { r = 0; g = c; b = x; }
+	else if (h < 4.0f / 6.0f) { r = 0; g = x; b = c; }
+	else if (h < 5.0f / 6.0f) { r = x; g = 0; b = c; }
+	else { r = c; g = 0; b = x; }
+
+	return (Vector4) { r + m, g + m, b + m, hsl.w };
+}
+
+// Brighten a color by an amount from 0 to 1.
+Vector4 brighten_color(Vector4 rgb, float amount)
+{
+	Vector4 hsl = rgb_to_hsl(rgb);
+	hsl.z = MIN(hsl.z + amount, 1.0f);
+	return hsl_to_rgb(hsl);
+}
+
+// Darken a color by an amount from 0 to 1.
+Vector4 darken_color(Vector4 rgb, float amount)
+{
+	Vector4 hsl = rgb_to_hsl(rgb);
+	hsl.z = MAX(hsl.z - amount, 0.0f);
+	return hsl_to_rgb(hsl);
+}
+
+float srgb_to_linear(float c) {
+    return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
+}
+
+float luminance(float r, float g, float b) {
+    float rs = srgb_to_linear(r);
+    float gs = srgb_to_linear(g);
+    float bs = srgb_to_linear(b);
+    return 0.2126f * rs + 0.7152f * gs + 0.0722f * bs;
 }
 
 bool CheckCollisionPointRec(Vector2 point, Rectangle rec) {
@@ -714,6 +811,8 @@ bool tab_select(Tab_Select *self, Vector2 pos, enum cursor_state cs)
 bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int key)
 {
 	State *st = self->st;
+	struct color_info ci = current_color(st);
+	Vector4 rgb = ci.rgb;
 	float dpi = st->dpi;
 	int new_value = self->value;
 	/*
@@ -722,7 +821,19 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 	self->h = 30*dpi;
 	*/
 	float a = st->text_color.x < .5f ? .25f + .25f*self->shade_v : .75f - .25f*self->shade_v;
-	Vector4 hl_color = { a, a, a, .5f*self->shade_v };
+	Vector4 hl_color;
+	float lum = luminance(rgb.x, rgb.y, rgb.z);
+	float cutoff = 0.179;
+	if (lum > cutoff) {
+		// Todo: this scheme was reached with some manual tweaking: border colors were overdarkened,
+		// saturated pinks and cyans were underdarkened. Still not perfect.
+		float d = (lum - cutoff) / (1 - cutoff);
+		hl_color = darken_color(rgb, self->shade_v*(0.075f + d*0.12f));
+	} else {
+		// Todo: overlightning on dark greens and reds, but not black.
+		float d = (cutoff - lum) / (cutoff);
+		hl_color = brighten_color(rgb, self->shade_v*(0.09f + d*0.05f));
+	}
 
 	i32 text_y = self->y + self->h/2.0f + FONT_MEDIUM_PX*CENTER_EM;
 
@@ -887,14 +998,6 @@ bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool 
 	ns->h = h;
 	ns->drag_pixels_per_value = drag_pixels_per_value;
 	return number_select(ns, pos, cs, key);
-}
-
-float luminance(float r, float g, float b)
-{
-  float rs = r <= 0.3928f ? r / 12.92f : powf((r+0.055f)/1.055f, 2.4f);
-  float gs = g <= 0.3928f ? g / 12.92f : powf((g+0.055f)/1.055f, 2.4f);
-  float bs = b <= 0.3928f ? b / 12.92f : powf((b+0.055f)/1.055f, 2.4f);
-  return 0.2126f * rs + 0.7152f * gs + 0.0722f * bs;
 }
 
 void draw_ui_and_respond_input(struct state *st)
