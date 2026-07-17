@@ -54,6 +54,8 @@ typedef struct atlas_glyph_info {
     i32 advance_y; // always 0?
 } Atlas_Glyph_Info;
 
+GL_Scene *current_scene = NULL;
+
 static i32 create_and_add_opengl_texture(GL_Scene *scene, i32 w, i32 h, i32 channels, void *data)
 {
     i32 i = scene->n_textures++;
@@ -490,9 +492,13 @@ void outlineize(float *data, i32 stride, i32 n, float thickness, Vector4 color, 
     }
 }
 
-void assert_not_overflowing(GL_Scene *scene)
+void finalize_add_command(GL_Scene *scene)
 {
     assertf(scene->n < scene->capacity, "Overflow of scene buffer capacity(too much drawing).\n");
+    if (current_scene && scene != current_scene) {
+        flush_scene(current_scene);
+    }
+    current_scene = scene;
 }
 
 void add_rectangle(GL_Scene *scene, float x, float y, float w, float h, Vector4 color)
@@ -514,7 +520,7 @@ void add_rectangle(GL_Scene *scene, float x, float y, float w, float h, Vector4 
     Vector2 center = { x + 0.5*w, y + 0.5*h };
     triangleize(data, scene->vertex_size, n, center, color, true);
     scene->n += n*3;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_rectangle_outline(GL_Scene *scene, float x, float y, float w, float h, float thickness,
@@ -532,7 +538,7 @@ void add_rectangle_outline(GL_Scene *scene, float x, float y, float w, float h, 
     i32 n = generate_rectangle(data, 6*scene->vertex_size, x, y, w, h, color);
     outlineize(data, scene->vertex_size, n, thickness, color, true);
     scene->n += n*6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void transform_points_to_screen_coords(GL_Scene *scene, Vector2 *result, Vector2 *points, i32 n)
@@ -561,7 +567,7 @@ void add_quad(GL_Scene *scene, Vector2 *corners, Vector4 color)
     i32 n = generate_quad(data, 3*scene->vertex_size, corners);
     triangleize(data, scene->vertex_size, n, com, color, true);
     scene->n += n*3;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_quad_outline(GL_Scene *scene, Vector2 *corners, float thickness, Vector4 color)
@@ -577,7 +583,7 @@ void add_quad_outline(GL_Scene *scene, Vector2 *corners, float thickness, Vector
     i32 n = generate_quad(data, 6*scene->vertex_size, corners);
     outlineize(data, scene->vertex_size, n, thickness, color, true);
     scene->n += n*6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 /* If using screen coords, angle1 and angle2 are still specified according to normal, right-handed,
@@ -595,7 +601,7 @@ void add_circle_slice(GL_Scene *scene, float x, float y, float r, float angle1, 
     i32 n = generate_circle_arc(data, 3*scene->vertex_size, x, y, r, angle1, angle2, segments);
     triangleize(data, scene->vertex_size, n, (Vector2) { x, y }, color, false);
     scene->n += (n-1)*3;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_circle_arc (GL_Scene *scene, float x, float y, float r, float angle1, float angle2,
@@ -611,7 +617,7 @@ void add_circle_arc (GL_Scene *scene, float x, float y, float r, float angle1, f
     i32 n = generate_circle_arc(data, 6*scene->vertex_size, x, y, r, angle1, angle2, segments);
     outlineize(data, scene->vertex_size, n, thickness, color, false);
     scene->n += (n-1)*6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_circle(GL_Scene *scene, float x, float y, float r, float segments, Vector4 color)
@@ -625,7 +631,7 @@ void add_circle(GL_Scene *scene, float x, float y, float r, float segments, Vect
     i32 n = generate_circle(data, 3*scene->vertex_size, x, y, r, segments);
     triangleize(data, scene->vertex_size, n, (Vector2) { x, y }, color, true);
     scene->n += n*3;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_circle_outline(GL_Scene *scene, float x, float y, float r, float segments, float thickness,
@@ -641,7 +647,7 @@ void add_circle_outline(GL_Scene *scene, float x, float y, float r, float segmen
     i32 n = generate_circle(data, 6*scene->vertex_size, x, y, r, segments);
     outlineize(data, scene->vertex_size, n, thickness, color, true);
     scene->n += n*6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 
@@ -658,7 +664,7 @@ void add_superellipse(GL_Scene *scene, float x, float y, float a, float b, i32 n
     i32 n_shape = generate_superellipse(data, 3*scene->vertex_size, x, y, a, b, n, segments);
     triangleize(data, scene->vertex_size, n_shape, (Vector2) { x, y }, color, true);
     scene->n += n_shape*3;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_superellipse_outline(GL_Scene *scene, float x, float y, float a, float b, float n,
@@ -675,7 +681,7 @@ void add_superellipse_outline(GL_Scene *scene, float x, float y, float a, float 
     i32 n_shape = generate_superellipse(data, 6*scene->vertex_size, x, y, a, b, n, segments);
     outlineize(data, scene->vertex_size, n_shape, thickness, color, true);
     scene->n += n_shape*6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_rounded_quad(GL_Scene *scene, Vector2 *corners, bool *rounded, float radius,
@@ -699,7 +705,7 @@ void add_rounded_quad(GL_Scene *scene, Vector2 *corners, bool *rounded, float ra
         segments_per_corner);
     triangleize(data, scene->vertex_size, n, center, color, true);
     scene->n += n*3;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_rounded_quad_outline(GL_Scene *scene, Vector2 *corners, bool *rounded, float radius,
@@ -718,7 +724,7 @@ void add_rounded_quad_outline(GL_Scene *scene, Vector2 *corners, bool *rounded, 
         segments_per_corner);
     outlineize(data, scene->vertex_size, n, thickness, color, true);
     scene->n += n*6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_rounded_rectangle(GL_Scene *scene, float x, float y, float w, float h, float radius,
@@ -738,7 +744,7 @@ void add_rounded_rectangle(GL_Scene *scene, float x, float y, float w, float h, 
     Vector2 center = { x + 0.5f*w, y + 0.5f*h };
     triangleize(data, scene->vertex_size, n, center, color, true);
     scene->n += n*3;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_rounded_rectangle_outline(GL_Scene *scene, float x, float y, float w, float h,
@@ -758,7 +764,7 @@ void add_rounded_rectangle_outline(GL_Scene *scene, float x, float y, float w, f
         segments_per_corner);
     outlineize(data, scene->vertex_size, n, thickness, color, true);
     scene->n += n*6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 void add_line(GL_Scene *scene, float x1, float y1, float x2, float y2, float thickness,
@@ -804,7 +810,7 @@ void add_line(GL_Scene *scene, float x1, float y1, float x2, float y2, float thi
         data[j*stride+9] = -1.0f;
     }
     scene->n += 6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
 }
 
 // xx stride
@@ -865,7 +871,7 @@ void add_character(GL_Scene *scene, int font_i, float x, float y, u32 c, Vector4
         data[base + 9] = (float) font_i;
     }
     scene->n += 6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
     float adv_x = info->advance_x;
     // info->advance_x is in pixels, so translate to NDC if *not* using pixels.
     if (!scene->use_screen_coords) {
@@ -987,7 +993,7 @@ void add_image(GL_Scene *scene, i32 image_i, float x, float y)
     }
     float *data = scene->vertices + scene->vertex_size*(u64)scene->n;
     scene->n += 6;
-    assert_not_overflowing(scene);
+    finalize_add_command(scene);
     i32 stride = scene->vertex_size;
     float positions[6][2] = {
         { x, y },
@@ -1453,8 +1459,9 @@ void reset_scene(GL_Scene *scene)
     scene->n = 0;
 }
 
-void draw_scene(GL_Scene *scene)
+void flush_scene(GL_Scene *scene)
 {
+    if (scene->n == 0) return;
     glUseProgram(scene->shader_program);
     glUniform1f(scene->uYScale_location, scene->y_scale);
     if (scene->uTextures_location >= 0) {
@@ -1473,8 +1480,16 @@ void draw_scene(GL_Scene *scene)
     }
     glBindVertexArray(scene->vao);
     glBindBuffer(GL_ARRAY_BUFFER, scene->vbo);
+    glBufferData(GL_ARRAY_BUFFER, scene->capacity * scene->vertex_size * sizeof(float), NULL, GL_STREAM_DRAW); // orphan
     glBufferSubData(GL_ARRAY_BUFFER, 0, (u64) scene->n * scene->vertex_size * sizeof(float),
         scene->vertices);
     glDrawArrays(GL_TRIANGLES, 0, scene->n);
+    scene->n = 0;
+}
+
+void end_frame()
+{
+    if (current_scene) flush_scene(current_scene);
+    current_scene = NULL;
 }
 

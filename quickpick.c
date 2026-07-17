@@ -447,6 +447,7 @@ void update_color_or_mode(struct state *st, int mode, int fixed, struct color_in
 struct color_info current_color(struct state *st)
 {
 	struct color_info res;
+	// rgb
 	if (st->mode == 0 && !st->from_alternate_value || st->mode == 1 && st->from_alternate_value) {
 		if (st->from_alternate_value) {
 			res.rgb = (Vector4) { st->alternate_value.x, st->alternate_value.y,
@@ -468,7 +469,7 @@ struct color_info current_color(struct state *st)
 			}
 		}
 		res.hsv = rgb_to_hsv(res.rgb);
-	} else {
+	} else { // hsv
 		if (st->from_alternate_value) {
 			res.hsv = (Vector4) { st->alternate_value.x, st->alternate_value.y,
 				st->alternate_value.z, 1.0f };
@@ -514,14 +515,11 @@ void write_color_to_file(struct state *st, Vector4 color)
 }
 
 // x, y = bottom left of gradient(for convenience with our visualization)
-void add_gradient_square(GL_Scene *scene, float x, float y, float s, Vector4 *corner_colors)
+void add_gradient_rectangle(GL_Scene *scene, float x, float y, float w, float h, Vector4 *corner_colors)
 {
 	i32 stride = scene->vertex_size;
 	float *data = scene->vertices + scene->n*scene->vertex_size;
 	scene->n += 6;
-	assert_not_overflowing(scene);
-	float w = s;
-	float h = s;
 	if (scene->use_screen_coords) {
         x = x * (2.0f / scene->viewport_w) - 1.0f;
         y = y * (-2.0f / scene->viewport_w) + scene->y_scale;
@@ -550,6 +548,7 @@ void add_gradient_square(GL_Scene *scene, float x, float y, float s, Vector4 *co
 		data[i*stride+8] = 0.0f;
 		data[i*stride+9] = -1.0f;
 	}
+	finalize_add_command(scene);
 }
 
 void draw_gradient_square_rgb(State *st, int x, int y, int size, int which_fixed, float fixed_val)
@@ -569,7 +568,7 @@ void draw_gradient_square_rgb(State *st, int x, int y, int size, int which_fixed
 			}
 		}
 	}
-	add_gradient_square(st->main_scene, x, y+size, size, corner_cols);
+	add_gradient_rectangle(st->main_scene, x, y+size, size, size, corner_cols);
 }
 
 void draw_gradient_square_hsv(struct state *st, int x, int y, int size, int which_fixed,
@@ -581,9 +580,6 @@ void draw_gradient_square_hsv(struct state *st, int x, int y, int size, int whic
 			int c1 = j ? 1.0f : 0;
 			int c2 = i ? 1.0f : 0;
 			if (which_fixed == 0) { // hue
-				// The easiest way to write the fragment shader for raylib is to store the hsv
-				// values as if they are RGB colors, which means they have to be clipped to 0-255.
-				// But there are no visible changes compared to the more precise cpu only version.
 				corner_cols[i*2+j] =  (Vector4) { fixed_val, j, i, 1.0f };
 			} else if (which_fixed == 1) { // saturation
 				corner_cols[i*2+j] = (Vector4) { j, fixed_val, i, 1.0f };
@@ -591,8 +587,7 @@ void draw_gradient_square_hsv(struct state *st, int x, int y, int size, int whic
 		}
 	}
 	Rectangle rec = { x, y, size, size };
-	add_gradient_square(st->hsv_grad_scene, x, y+size, size, corner_cols);
-	glUseProgram(0);
+	add_gradient_rectangle(st->hsv_grad_scene, x, y+size, size, size, corner_cols);
 }
 
 void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct state *st)
@@ -601,7 +596,6 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 	    GL_Scene *scene = st->hsv_grad_scene;
 	    float *data = scene->vertices + scene->vertex_size*scene->n;
 	    scene->n += 360*3;
-	    assert_not_overflowing(scene);
     	float x_ndc = x * (2.0f / scene->viewport_w) - 1.0f;
     	float y_ndc = y * (-2.0f / scene->viewport_w) + scene->y_scale;
     	float r_ndc = r *(2.0f / scene->viewport_w);
@@ -641,6 +635,7 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 	    	data[offset+2*stride+8] = 0.0f;
 	    	data[offset+2*stride+9] = -1.0f;
 	    }
+		finalize_add_command(scene);
 	}
 	// tick marks
 	float dpi = st->dpi;
@@ -1286,12 +1281,43 @@ void draw_ui_and_respond_input(struct state *st)
 	int val_slider_h = 60*scale;
 	int val_slider_offset = roundf(val_slider_w * ( (float) st->fixed_value ));
 	{
-		int bar_h = 8*scale;
-		int circle_r = 15*scale;
-		add_rounded_rectangle(st->main_scene, val_slider_x, val_slider_y-bar_h/2.0f, val_slider_w,
-			bar_h, 3.0f, 10, st->text_color);
+		int bar_h = 30*scale;
+		int circle_r = 18*scale;
+		// Compute colors that would result from slider being all the way down and all the way up
+		Vector4 slider_down_color;
+		Vector4 slider_up_color;
+		float xv = st->x_value;
+		float yv = st->y_value;
+		switch (st->which_fixed) {
+		case 0: {
+			slider_down_color = (Vector4) { 0.0f, xv, yv, 1.0f };
+			slider_up_color = (Vector4) { 1.0f, xv, yv, 1.0f };
+		} break;
+		case 1: {
+			slider_down_color = (Vector4) { xv, 0.0f, yv, 1.0f };
+			slider_up_color = (Vector4) { xv, 1.0, yv, 1.0f };
+		} break;
+		case 2: {
+			slider_down_color = (Vector4) { xv, yv, 0.0f, 1.0f };
+			slider_up_color = (Vector4) { xv, yv, 1.0f, 1.0f };
+		} break;
+		}
+		// if (st->mode == 1) {
+		// 	slider_down_color = hsv_to_rgb(slider_down_color);
+		// 	slider_up_color = hsv_to_rgb(slider_up_color);
+		// }
+		Vector4 corner_cols[4] = { slider_down_color, slider_up_color,
+		                           slider_down_color, slider_up_color };
+		float h = 0.5f;
+		float out_w = 8.0f*dpi;
+		Vector4 outline_color = hex2color(0xb0b0b0ff);
+		add_rounded_rectangle(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f, val_slider_w+out_w,
+			bar_h+out_w, 12.0f*dpi, 10, outline_color);
+		GL_Scene *scene = st->mode == 1 ? st->hsv_grad_scene : st->main_scene;
+		add_gradient_rectangle(scene, val_slider_x, val_slider_y+bar_h/2.0f, val_slider_w,
+			bar_h, corner_cols);
 		Vector2 circle_center = {  };
-		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, 15*scale,
+		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
 			30, fixed_indication_color);
 		if (st->cursor_state == CURSOR_START || st->val_slider_dragging) {
 			if (!st->val_slider_dragging && CheckCollisionPointRec(pos,
@@ -1558,9 +1584,7 @@ int on_resize_watcher(void* data, SDL_Event* event) {
 
 	draw_ui_and_respond_input(st);
 
-	if (st->hsv_grad_scene->n)
-		draw_scene(st->hsv_grad_scene);
-	draw_scene(st->main_scene);
+	end_frame();
 
 	SDL_GL_SwapWindow(st->window);
   return 0;
@@ -1819,9 +1843,7 @@ int main(int argc, char *argv[])
 
 		draw_ui_and_respond_input(st);
 
-		if (st->hsv_grad_scene->n)
-			draw_scene(st->hsv_grad_scene);
-		draw_scene(st->main_scene);
+		end_frame();
 
 		SDL_GL_SwapWindow(st->window);
 

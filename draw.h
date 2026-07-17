@@ -76,7 +76,7 @@ i32 generate_rounded_quad(float *data, i32 stride, Vector2 *corners, bool *round
     i32 segments_per_corner);
 void triangleize(float *data, i32 stride, i32 n, Vector2 center, Vector4 color, bool connected);
 void outlineize(float *data, i32 stride, i32 n, float thickness, Vector4 color, bool connected);
-void assert_not_overflowing(GL_Scene *scene);
+void finalize_add_command(GL_Scene *scene);
 void add_rectangle(GL_Scene *scene, float x, float y, float w, float h, Vector4 color);
 void add_rectangle_outline(GL_Scene *scene, float x, float y, float w, float h, float thickness,
     Vector4 color);
@@ -122,7 +122,8 @@ i32 load_image_from_memory(GL_Scene *scene, const void *data, u64 data_size, con
 // load RGBA bitmap
 i32 load_bitmap(GL_Scene *scene, const void *data, i32 width, i32 height, i32 bytes_per_row);
 void reset_scene(GL_Scene *scene);
-void draw_scene(GL_Scene *scene);
+void flush_scene(GL_Scene *scene);
+void end_frame();
 
 #ifdef __cplusplus
 }
