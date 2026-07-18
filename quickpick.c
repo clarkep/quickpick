@@ -1047,22 +1047,15 @@ void draw_ui_and_respond_input(struct state *st)
 	}
 
 	// misc ui colors
-	float dark_text_bright_grey_bg = 208.0f / 255.0f;
-	float dark_text_dim_grey_bg = 144.0f / 255.0f;
-	float light_text_bright_grey_bg = 160.0f / 255.0f;
-	float light_text_dim_grey_bg = 80.0f / 255.0f;
+	Vector4 bright_grey_bg = hex2color(0xa0a0a0ff);
+	Vector4 dim_grey_bg = hex2color(0x505050ff);
 	Vector4 fixed_indication_color;
-	Vector4 light_text_indication_color;
 	if (st->mode == 0) {
 		int wf = st->which_fixed;
 		int rgb_fixed_ind[] = { 0xc00000ff, 0x00c000ff, 0x0080ffff };
 		fixed_indication_color = hex2color(rgb_fixed_ind[wf]);
-		light_text_indication_color = fixed_indication_color;
 	} else {
-		float a = st->text_color.x < .05 ? dark_text_bright_grey_bg : light_text_bright_grey_bg;
-		float b = light_text_bright_grey_bg;
-		fixed_indication_color = (Vector4) { a, a, a, 1.0f };
-		light_text_indication_color = (Vector4) { b, b, b, 1.0f };
+		fixed_indication_color = bright_grey_bg;
 	}
 
 	// menu_icon
@@ -1212,13 +1205,9 @@ void draw_ui_and_respond_input(struct state *st)
 		rgb_tabs.labels[1] = 'G';
 		rgb_tabs.labels[2] = 'B';
 		rgb_tabs.top = true;
-		float a = light_text_bright_grey_bg;
-		float b = light_text_dim_grey_bg;
-		Vector4 bright = { a, a, a, 1.0f };
-		Vector4 dim = { b, b, b, 1.0f };
 		for (int i=0; i<3; i++) {
-			hsv_tabs.active_colors[i] = bright;
-			hsv_tabs.inactive_colors[i] = dim;
+			hsv_tabs.active_colors[i] = bright_grey_bg;
+			hsv_tabs.inactive_colors[i] = dim_grey_bg;
 		}
 		float sel_hov_brightness = 0.4f;
 		hsv_tabs.active_text_color = rgb_tabs.active_text_color;
@@ -1265,7 +1254,7 @@ void draw_ui_and_respond_input(struct state *st)
 	// main button
 	static float main_button_hover_v = 0;
 	float hov_bright = 0.4f;
-	Vector4 fixed_button_color = color_brightness(light_text_indication_color,
+	Vector4 fixed_button_color = color_brightness(fixed_indication_color,
 		main_button_hover_v * hov_bright);
 	add_rectangle(st->main_scene, main_button_x, main_button_y, main_button_w, main_button_h,
 		fixed_button_color);
@@ -1297,7 +1286,7 @@ void draw_ui_and_respond_input(struct state *st)
 	int val_slider_h = 60*scale;
 	int val_slider_offset = roundf(val_slider_w * ( (float) st->fixed_value ));
 	{
-		int bar_h = 30*scale;
+		int bar_h = 26*scale;
 		int circle_r = 18*scale;
 		// Compute colors that would result from slider being all the way down and all the way up
 		Vector4 slider_down_color;
@@ -1325,13 +1314,15 @@ void draw_ui_and_respond_input(struct state *st)
 		Vector4 corner_cols[4] = { slider_down_color, slider_up_color,
 		                           slider_down_color, slider_up_color };
 		float h = 0.5f;
-		float out_w = 8.0f*dpi;
-		Vector4 outline_color = hex2color(0xb0b0b0ff);
+		float out_w = 8.0f*scale;
+		// Todo: because outline color is the same as fixed_indication_color for hsv modes, the slider
+		// can completely disappear in rare cases.
+		Vector4 outline_color = bright_grey_bg;
 		add_rounded_rectangle(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f, val_slider_w+out_w,
-			bar_h+out_w, 12.0f*dpi, 10, outline_color);
+			bar_h+out_w, 12.0f*scale, 10, outline_color);
 		GL_Scene *scene = st->mode == 1 ? st->hsv_grad_scene : st->main_scene;
 		add_gradient_rectangle_rounded_ends(scene, val_slider_x, val_slider_y+bar_h/2.0f,
-			val_slider_w, bar_h, 8.0f*dpi, 10, corner_cols);
+			val_slider_w, bar_h, 8.0f*scale, 10, corner_cols);
 		Vector2 circle_center = {  };
 		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
 			30, fixed_indication_color);
