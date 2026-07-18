@@ -819,11 +819,11 @@ bool tab_select(Tab_Select *self, Vector2 pos, enum cursor_state cs)
 	return updated;
 }
 
-bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int key)
+bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int key,
+	struct color_info *ci)
 {
 	State *st = self->st;
-	struct color_info ci = current_color(st);
-	Vector4 rgb = ci.rgb;
+	Vector4 rgb = ci->rgb;
 	float dpi = st->dpi;
 	int new_value = self->value;
 	/*
@@ -995,7 +995,7 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 
 bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool wrap_around,
 	State *st, float anim_vdt, int x, int y, int w, int h, float drag_pixels_per_value, Vector2 pos,
-	enum cursor_state cs, int key)
+	enum cursor_state cs, int key, struct color_info *ci)
 {
 	ns->fmt = fmt;
 	ns->min = min;
@@ -1008,7 +1008,7 @@ bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool 
 	ns->w = w;
 	ns->h = h;
 	ns->drag_pixels_per_value = drag_pixels_per_value;
-	return number_select(ns, pos, cs, key);
+	return number_select(ns, pos, cs, key, ci);
 }
 
 void draw_ui_and_respond_input(struct state *st)
@@ -1349,21 +1349,21 @@ void draw_ui_and_respond_input(struct state *st)
 	static Number_Select r_num_select;
 	r_num_select.value = cur_color.x * 255.0f;
 	if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt, r_select_x,
-		r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, pos, st->cursor_state, key)) {
+		r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, pos, st->cursor_state, key, &ci)) {
 		rgb_num_select_changed = true;
 	}
 	static Number_Select g_num_select;
 	g_num_select.value = cur_color.y * 255.0f;
 	if (number_select_immargs(&g_num_select, "g:%d ", 0, 255, false, st, anim_vdt,
 		r_num_select.x+r_num_select.w, r_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
-		pos, st->cursor_state, key)) {
+		pos, st->cursor_state, key, &ci)) {
 		rgb_num_select_changed = true;
 	}
 	static Number_Select b_num_select;
 	b_num_select.value = cur_color.z * 255.0f;
 	if (number_select_immargs(&b_num_select, "b:%d ", 0, 255, false, st, anim_vdt,
 		g_num_select.x+g_num_select.w, g_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
-		pos, st->cursor_state, key)) {
+		pos, st->cursor_state, key, &ci)) {
 		rgb_num_select_changed = true;
 	}
 	if (rgb_num_select_changed) {
@@ -1395,21 +1395,21 @@ void draw_ui_and_respond_input(struct state *st)
 	h_num_select.value = cur_hsv.x * 360.0f;
 	if (number_select_immargs(&h_num_select, "h:%d\xc2\xb0", 0, 359, true, st, anim_vdt,
 		r_num_select.x, r_num_select.y + 35*scale, hsv_select_w, 30*scale, 800.0f/360.0f,
-		pos, st->cursor_state, key)) {
+		pos, st->cursor_state, key, &ci)) {
 		hsv_num_select_changed = true;
 	}
 	static Number_Select s_num_select;
 	s_num_select.value = cur_hsv.y * 100.0f;
 	if (number_select_immargs(&s_num_select, "s:%d%% ", 0, 100, false, st, anim_vdt,
 		h_num_select.x+h_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
-		pos, st->cursor_state, key)) {
+		pos, st->cursor_state, key, &ci)) {
 		hsv_num_select_changed = true;
 	}
 	static Number_Select v_num_select;
 	v_num_select.value = cur_hsv.z * 100.0f;
 	if (number_select_immargs(&v_num_select, "v:%d%% ", 0, 100, false, st, anim_vdt,
 		s_num_select.x+s_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
-		pos, st->cursor_state, key)) {
+		pos, st->cursor_state, key, &ci)) {
 		hsv_num_select_changed = true;
 	}
 	if (hsv_num_select_changed) {
