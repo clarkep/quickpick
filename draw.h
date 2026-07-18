@@ -121,7 +121,7 @@ i32 load_image(GL_Scene *scene, const char *file, const char *type);
 i32 load_image_from_memory(GL_Scene *scene, const void *data, u64 data_size, const char *type);
 // load RGBA bitmap
 i32 load_bitmap(GL_Scene *scene, const void *data, i32 width, i32 height, i32 bytes_per_row);
-void reset_scene(GL_Scene *scene);
+void reset_scene(GL_Scene *scene, i32 viewport_w, i32 viewport_h);
 void flush_scene(GL_Scene *scene);
 void end_frame();
 

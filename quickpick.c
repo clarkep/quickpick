@@ -2,7 +2,6 @@
 quickpick: a color picker
 
 By: Paul Clarke
-Originally Created: 4/10/2024
 License: MIT(see LICENSE)
 */
 
@@ -1563,24 +1562,21 @@ SDL_Surface* surface_from_memory(const u8* buffer, int size, u8 **bmp) {
 // Prevent UI from stoppping during an interactive resize on Windows.
 int on_resize_watcher(void* data, SDL_Event* event) {
 	State *st = (State *) data;
-	if (event->type == SDL_WINDOWEVENT &&
-	  event->window.event == SDL_WINDOWEVENT_RESIZED) {
-		SDL_Window* win = SDL_GetWindowFromID(event->window.windowID);
+	if (event->type != SDL_WINDOWEVENT ||
+	  event->window.event != SDL_WINDOWEVENT_RESIZED) {
+		return 0;
 	}
 	int drawable_w, drawable_h;
-	int window_w, window_h;
 	// Check for DPI changes
 	SDL_GL_GetDrawableSize(st->window, &drawable_w, &drawable_h);
-	SDL_GetWindowSize(st->window, &window_w, &window_h);
-	float new_dpi = (float)drawable_w / window_w;
 	st->screenWidth = drawable_w;
 	st->screenHeight = drawable_h;
 
 	// Setup viewport and projection
 	glViewport(0, 0, drawable_w, drawable_h);
 
-	reset_scene(st->hsv_grad_scene);
-	reset_scene(st->main_scene);
+	reset_scene(st->hsv_grad_scene, drawable_w, drawable_h);
+	reset_scene(st->main_scene, drawable_w, drawable_h);
 
 	draw_ui_and_respond_input(st);
 
@@ -1623,6 +1619,8 @@ int main(int argc, char *argv[])
 				st->outfile.offset = strtoull(argv[i+1], NULL, 10);
 				errexit_unless(!errno, usage_str);
 				i++;
+			} else if (strcmp(longarg, "debug")==0) {
+				st->debug = true;
 			}
 		} else if (argv[i][0] == '-') {
 			errexit(usage_str);
@@ -1684,11 +1682,26 @@ int main(int argc, char *argv[])
         goto exit;
     }
 
-	// xxx this stuff...
 	// enable vsync
-	// SDL_GL_SetSwapInterval(1);
-	// glEnable(GL_BLEND);
-	// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	SDL_GL_SetSwapInterval(1);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	if (st->debug) {
+		int msaa_buffers = 0, msaa_samples = 0, doublebuffer = 0;
+		SDL_GL_GetAttribute(SDL_GL_MULTISAMPLEBUFFERS, &msaa_buffers);
+		SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &msaa_samples);
+		SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &doublebuffer);
+		printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));
+		printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
+		printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
+		printf("MSAA buffers: %d, samples: %d, doublebuffer: %d, swap interval: %d\n",
+			msaa_buffers, msaa_samples, doublebuffer, SDL_GL_GetSwapInterval());
+		SDL_DisplayMode mode;
+		if (SDL_GetCurrentDisplayMode(0, &mode) == 0) {
+			printf("Display: %dx%d @ %d Hz\n", mode.w, mode.h, mode.refresh_rate);
+		}
+	}
 
     // The charset for our small font includes the default ASCII characters, and anything in the
     // outfile name which will be displayed at the top of the window.
@@ -1838,8 +1851,8 @@ int main(int argc, char *argv[])
 		// Setup viewport and projection
 		glViewport(0, 0, drawable_w, drawable_h);
 
-		reset_scene(st->hsv_grad_scene);
-		reset_scene(st->main_scene);
+		reset_scene(st->hsv_grad_scene, drawable_w, drawable_h);
+		reset_scene(st->main_scene, drawable_w, drawable_h);
 
 		draw_ui_and_respond_input(st);
 
@@ -1847,16 +1860,16 @@ int main(int argc, char *argv[])
 
 		SDL_GL_SwapWindow(st->window);
 
-		/*
-		frames++;
-		unsigned long long ticks_now = SDL_GetTicks64();
-		const i32 print_frame_interval_secs = 2;
-		if (ticks_now >= ticks_start + print_frame_interval_secs*1000) {
-			printf("FPS: %.1f\n", frames / (float)print_frame_interval_secs);
-			ticks_start = ticks_now;
-			frames = 0;
+		if (st->debug) {
+			frames++;
+			unsigned long long ticks_now = SDL_GetTicks64();
+			const i32 print_frame_interval_secs = 2;
+			if (ticks_now >= ticks_start + print_frame_interval_secs*1000) {
+				printf("FPS: %.1f\n", frames / (float)print_frame_interval_secs);
+				ticks_start = ticks_now;
+				frames = 0;
+			}
 		}
-		*/
     }
 
     exit:

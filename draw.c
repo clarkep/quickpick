@@ -1448,12 +1448,10 @@ void destroy_scene(GL_Scene *scene)
     free(scene);
 }
 
-void reset_scene(GL_Scene *scene)
+void reset_scene(GL_Scene *scene, i32 viewport_w, i32 viewport_h)
 {
-    i32 viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
-    scene->viewport_w = viewport[2];
-    scene->viewport_h = viewport[3];
+    scene->viewport_w = viewport_w;
+    scene->viewport_h = viewport_h;
     scene->y_scale = (float) scene->viewport_h / scene->viewport_w;
 
     scene->n = 0;
