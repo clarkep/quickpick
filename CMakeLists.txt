@@ -29,6 +29,9 @@ else()
     )
     set(SDL_SHARED OFF CACHE BOOL "" FORCE)
     set(SDL_STATIC ON  CACHE BOOL "" FORCE)
+    # We define SDL_MAIN_HANDLED and don't use the test lib; skip building both
+    set(SDL2_DISABLE_SDL2MAIN ON  CACHE BOOL "" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(SDL2)
     FetchContent_Declare(
         Freetype
