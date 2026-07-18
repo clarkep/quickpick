@@ -550,6 +550,23 @@ void add_gradient_rectangle(GL_Scene *scene, float x, float y, float w, float h,
 	finalize_add_command(scene);
 }
 
+/* The shape of the slider: like add_gradient_rectangle, but with rounded left and right ends. Each
+end is a solid color (corner_colors[0] and corner_colors[1]. Again x, y = bottom left. */
+void add_gradient_rectangle_rounded_ends(GL_Scene *scene, float x, float y, float w, float h,
+	float radius, i32 segments_per_corner, Vector4 *corner_colors)
+{
+	add_gradient_rectangle(scene, x+radius, y, w-2.0f*radius, h, corner_colors);
+	Vector2 left_corners[4] = { { x, y-h }, { x, y }, { x+radius, y }, { x+radius, y-h } };
+	bool left_rounded[4] = { true, true, false, false };
+	add_rounded_quad(scene, left_corners, left_rounded, radius, segments_per_corner,
+		corner_colors[0]);
+	Vector2 right_corners[4] = { { x+w-radius, y-h }, { x+w-radius, y }, { x+w, y },
+	                             { x+w, y-h } };
+	bool right_rounded[4] = { false, false, true, true };
+	add_rounded_quad(scene, right_corners, right_rounded, radius, segments_per_corner,
+		corner_colors[1]);
+}
+
 void draw_gradient_square_rgb(State *st, int x, int y, int size, int which_fixed, float fixed_val)
 {
 	Vector4 corner_cols[4];
@@ -1313,8 +1330,8 @@ void draw_ui_and_respond_input(struct state *st)
 		add_rounded_rectangle(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f, val_slider_w+out_w,
 			bar_h+out_w, 12.0f*dpi, 10, outline_color);
 		GL_Scene *scene = st->mode == 1 ? st->hsv_grad_scene : st->main_scene;
-		add_gradient_rectangle(scene, val_slider_x, val_slider_y+bar_h/2.0f, val_slider_w,
-			bar_h, corner_cols);
+		add_gradient_rectangle_rounded_ends(scene, val_slider_x, val_slider_y+bar_h/2.0f,
+			val_slider_w, bar_h, 8.0f*dpi, 10, corner_cols);
 		Vector2 circle_center = {  };
 		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
 			30, fixed_indication_color);
