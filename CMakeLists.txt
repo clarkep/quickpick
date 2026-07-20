@@ -9,6 +9,7 @@ project(quickpick)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(SYSTEM_LIBS "Use system libraries instead of fetching at configure time." OFF)
+option(SHARED_DEPS "Build SDL2 and freetype as shared libraries." OFF)
 
 if (${SYSTEM_LIBS})
     find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
@@ -27,8 +28,13 @@ else()
         URL https://github.com/libsdl-org/SDL/releases/download/release-2.30.11/SDL2-2.30.11.tar.gz
         URL_HASH MD5=bea190b480f6df249db29eb3bacfe41e
     )
-    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-    set(SDL_STATIC ON  CACHE BOOL "" FORCE)
+    if (${SHARED_DEPS})
+        set(SDL_SHARED ON  CACHE BOOL "" FORCE)
+        set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+    else()
+        set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+        set(SDL_STATIC ON  CACHE BOOL "" FORCE)
+    endif()
     # We define SDL_MAIN_HANDLED and don't use the test lib; skip building both
     set(SDL2_DISABLE_SDL2MAIN ON  CACHE BOOL "" FORCE)
     set(SDL_TEST OFF CACHE BOOL "" FORCE)
@@ -43,12 +49,25 @@ else()
     set(FT_DISABLE_PNG      ON  CACHE BOOL "" FORCE)
     set(FT_DISABLE_HARFBUZZ ON  CACHE BOOL "" FORCE)
     set(FT_DISABLE_BROTLI   ON CACHE BOOL "" FORCE)
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    if (${SHARED_DEPS})
+        set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
+    else()
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    endif()
     FetchContent_MakeAvailable(Freetype)
 
     add_executable(${PROJECT_NAME} quickpick.c draw.c util.c glad.c)
 
-    target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2-static)
+    if (${SHARED_DEPS})
+        target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)
+        # keep the exe runnable by putting the DLLs next to it
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:SDL2::SDL2> $<TARGET_FILE_DIR:${PROJECT_NAME}>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:freetype> $<TARGET_FILE_DIR:${PROJECT_NAME}>
+        )
+    else()
+        target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2-static)
+    endif()
 endif()
 # if (WIN32)
 #     target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2main)
