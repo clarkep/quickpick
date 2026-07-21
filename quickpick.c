@@ -917,7 +917,7 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 		self->clicking = false;
 	}
 	if (self->selected && key) {
-		int key_num = 1;
+		int key_num = -1;
 		if (key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_0) {
 			key_num = (key-SDL_SCANCODE_1+1) % 10;
 		} else if (key >= SDL_SCANCODE_KP_1 && key <= SDL_SCANCODE_KP_0) {
