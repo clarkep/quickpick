@@ -225,7 +225,6 @@ Font_Atlas *create_font_atlas(FT_Face ft_face,  u32 *charset, u32 charset_n, u32
         x += bitmap.width;
     }
     res->info_table = info_arr;
-    static int frame = 0;
     return res;
 }
 

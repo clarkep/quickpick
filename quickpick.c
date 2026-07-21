@@ -171,7 +171,7 @@ void myassert(bool p, char *fmt, ...) {
 	}
 }
 
-char *color_strings[2][3] = { "R", "G", "B", "H", "S", "V" };
+char *color_strings[2][3] = { {"R", "G", "B"}, {"H", "S", "V"} };
 
 Vector4 hex2color(unsigned int hex) {
 	return (Vector4){
@@ -447,7 +447,7 @@ struct color_info current_color(struct state *st)
 {
 	struct color_info res;
 	// rgb
-	if (st->mode == 0 && !st->from_alternate_value || st->mode == 1 && st->from_alternate_value) {
+	if ((st->mode == 0 && !st->from_alternate_value) || (st->mode == 1 && st->from_alternate_value)) {
 		if (st->from_alternate_value) {
 			res.rgb = (Vector4) { st->alternate_value.x, st->alternate_value.y,
 				st->alternate_value.z, 1.0f };
@@ -593,16 +593,15 @@ void draw_gradient_square_hsv(struct state *st, int x, int y, int size, int whic
 	Vector4 corner_cols[4];
 	for (int i=0; i<2; i++) {
 		for (int j=0; j<2; j++) {
-			int c1 = j ? 1.0f : 0;
-			int c2 = i ? 1.0f : 0;
+			float c1 = j ? 1.0f : 0.0f;
+			float c2 = i ? 1.0f : 0.0f;
 			if (which_fixed == 0) { // hue
-				corner_cols[i*2+j] =  (Vector4) { fixed_val, j, i, 1.0f };
+				corner_cols[i*2+j] =  (Vector4) { fixed_val, c1, c2, 1.0f };
 			} else if (which_fixed == 1) { // saturation
-				corner_cols[i*2+j] = (Vector4) { j, fixed_val, i, 1.0f };
+				corner_cols[i*2+j] = (Vector4) { c1, fixed_val, c2, 1.0f };
 			}
 		}
 	}
-	Rectangle rec = { x, y, size, size };
 	add_gradient_rectangle(st->hsv_grad_scene, x, y+size, size, size, corner_cols);
 }
 
@@ -831,10 +830,9 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 	self->w = (st->medium_char_width + 1.5*dpi) * n_chars;
 	self->h = 30*dpi;
 	*/
-	float a = st->text_color.x < .5f ? .25f + .25f*self->shade_v : .75f - .25f*self->shade_v;
 	Vector4 hl_color;
 	float lum = luminance(rgb.x, rgb.y, rgb.z);
-	float cutoff = 0.179;
+	float cutoff = 0.179f;
 	if (lum > cutoff) {
 		// Todo: this scheme was reached with some manual tweaking: border colors were overdarkened,
 		// saturated pinks and cyans were underdarkened. Still not perfect.
@@ -853,7 +851,6 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 	i32 segs = 15;
 	add_rounded_rectangle(st->main_scene, self->x - 10*dpi, self->y, self->w, self->h,
 		rnd, segs, hl_color);
-	i32 font_h = 30*dpi;
 	char text[21];
 	memset(text, 0, 21);
 	if (self->input_active) {
@@ -894,7 +891,7 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 		add_text(st->main_scene, st->text_font_medium, &text[d_i+d_chars], x, text_y,
 			st->text_color);
 	} else {
-		int n_chars = snprintf(text, 20, self->fmt,
+		snprintf(text, 21, self->fmt,
 			self->input_active ? self->input_n : self->value);
 		add_text(st->main_scene, st->text_font_medium, text, self->x, text_y,
 			st->text_color);
@@ -1014,7 +1011,7 @@ bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool 
 void draw_ui_and_respond_input(struct state *st)
 {
 	// frame counter for debugging
-	static u64 frame_n = 0;
+	// static u64 frame_n = 0;
 	// setup input
 	if (st->mouse_down) {
 		if (st->cursor_state == CURSOR_UP || st->cursor_state == CURSOR_STOP)
@@ -1128,7 +1125,6 @@ void draw_ui_and_respond_input(struct state *st)
 			draw_axes(grad_square_x, grad_square_y, grad_x_axis_h, grad_y_axis_w, scale, st);
 		}
 	}
-	int cur_loc_sq_sz = 4*scale;
 	// indicator circle
 	int ind_x, ind_y;
 	if (grad_square) {
@@ -1313,7 +1309,6 @@ void draw_ui_and_respond_input(struct state *st)
 		// }
 		Vector4 corner_cols[4] = { slider_down_color, slider_up_color,
 		                           slider_down_color, slider_up_color };
-		float h = 0.5f;
 		float out_w = 8.0f*scale;
 		// Todo: because outline color is the same as fixed_indication_color for hsv modes, the slider
 		// can completely disappear in rare cases.
@@ -1323,7 +1318,6 @@ void draw_ui_and_respond_input(struct state *st)
 		GL_Scene *scene = st->mode == 1 ? st->hsv_grad_scene : st->main_scene;
 		add_gradient_rectangle_rounded_ends(scene, val_slider_x, val_slider_y+bar_h/2.0f,
 			val_slider_w, bar_h, 8.0f*scale, 10, corner_cols);
-		Vector2 circle_center = {  };
 		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
 			30, fixed_indication_color);
 		if (st->cursor_state == CURSOR_START || st->val_slider_dragging) {
@@ -1385,7 +1379,6 @@ void draw_ui_and_respond_input(struct state *st)
 		(int)(cur_color.z*255.0f));
 	int hex_label_x = b_num_select.x + b_num_select.w;
 	int hex_label_y = r_num_select.y + r_num_select.h/2.0f + FONT_MEDIUM_PX*CENTER_EM;
-	i32 font_h = 30*scale;
 	add_text(st->main_scene, st->text_font_medium, value, hex_label_x, hex_label_y,
 		st->text_color);
 	// hsv number selectors
@@ -1437,7 +1430,7 @@ void draw_ui_and_respond_input(struct state *st)
 		st->outfile.last_write_color = cur_color;
 		st->outfile.last_write_time = now;
 	}
-	frame_n++;
+	// frame_n++;
 }
 
 const char* hsv_grad_vertex_shader =
@@ -1514,14 +1507,14 @@ void init_for_dpi(struct state *st, float dpi, float old_dpi, u32 *small_charset
 	u32 small_charset_n)
 {
 	st->dpi = dpi;
-	float ratio = dpi / old_dpi;
-	int new_target_w = st->screenWidth * ratio;
-	int new_target_h = st->screenHeight * ratio;
-	if (new_target_w  != st->screenWidth) {
-		// SDL_SetWindowSize(st->window, new_target_w, new_target_h);
-		// st->screenWidth = new_target_w;
-		// st->screenHeight = new_target_h;
-	}
+	// float ratio = dpi / old_dpi;
+	// int new_target_w = st->screenWidth * ratio;
+	// int new_target_h = st->screenHeight * ratio;
+	// if (new_target_w != st->screenWidth || new_target_h != st->screenHeight) {
+	// 	SDL_SetWindowSize(st->window, new_target_w, new_target_h);
+	// 	st->screenWidth = new_target_w;
+	// 	st->screenHeight = new_target_h;
+	// }
 
 	if (st->main_scene) {
 		destroy_scene(st->main_scene);
