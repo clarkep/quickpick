@@ -19,17 +19,16 @@ License: MIT(see LICENSE)
 #include <stdbool.h>
 
 #define SDL_MAIN_HANDLED
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <glad/glad.h>
 
-// include only the declarations for stb_image and nanosvg because the implementations are included
-// by draw.c
-#include "stb_image.h"
-#include "nanosvg.h"
-#include "nanosvgrast.h"
-
-#include "util.h"
-#include "draw.h"
+#include "au_core.h"
+#include "au_math.h"
+#include "au_containers.h"
+#include "au_window.h"
+#include "au_window_sdl.h"
+#include "au_draw.h"
+#include "au_string.h"
 
 #include "font/noto_sans_mono.h"
 #include "quickpick_icon.h"
@@ -55,9 +54,11 @@ typedef struct { float x, y, width, height; } Rectangle;
 enum cursor_state { CURSOR_UP, CURSOR_START, CURSOR_DOWN, CURSOR_STOP };
 
 typedef struct state {
-	int screenWidth;
-	int screenHeight;
-	float dpi;
+	Arena *arena;
+	Window *window;
+	i32 hsv_grad_context;
+	Scene *main_scene;
+	Scene *hsv_grad_scene;
 	int mode; // rgb(0) or hsv(1)
 	int which_fixed; // red(0), green(1) or blue(2); or hue(0), saturation(1), or value(2)
 	enum cursor_state cursor_state;
@@ -80,6 +81,7 @@ typedef struct state {
 	// xx variable width fonts...
 	// Font text_font_medium;
 	// Font text_font_large;
+	i32 font;
 	i32 text_font_small;
 	i32 text_font_medium;
 	i32 text_font_large;
@@ -88,15 +90,8 @@ typedef struct state {
 	int small_char_width;
 	int medium_char_width;
 	int large_char_width;
-	i32 small_font_max_ascent;
-	i32 medium_font_max_ascent;
-	i32 large_font_max_ascent;
 	int medium_label_width;
 	// Shader hsv_grad_shader;
-	GL_Scene *main_scene;
-	GL_Scene *hsv_grad_scene;
-	SDL_Window *window;
-	SDL_GLContext *gl_context;
 	struct {
 		char *path;
 		u32 *shortened_path_utf32;
@@ -514,17 +509,16 @@ void write_color_to_file(struct state *st, Vector4 color)
 }
 
 // x, y = bottom left of gradient(for convenience with our visualization)
-void add_gradient_rectangle(GL_Scene *scene, float x, float y, float w, float h, Vector4 *corner_colors)
+void add_gradient_rectangle(Scene *scene, float x, float y, float w, float h, Vector4 *corner_colors)
 {
-	i32 stride = scene->vertex_size;
-	float *data = scene->vertices + scene->n*scene->vertex_size;
-	scene->n += 6;
-	if (scene->use_screen_coords) {
-        x = x * (2.0f / scene->viewport_w) - 1.0f;
-        y = y * (-2.0f / scene->viewport_w) + scene->y_scale;
-        w = w * (2.0f / scene->viewport_w);
-        h = h * (2.0f / scene->viewport_w);
-	}
+	Render_Context *context = scene_get_and_activate_context(scene);
+	Float_Dynarray *vertices = context_get_vertices(context);
+	scene_transform_xy(scene, context, &x, &y);
+	context_transform_wh(context, &w, &h);
+	i32 vertex_size = context_get_vertex_size(context);
+	u64 max_verts = 6;
+	dynarray_expand_by(vertices, max_verts * vertex_size);
+	float *data = vertices->d + vertices->length;
 	Vector2 positions[4] = {
 		{ x, y },
 		{ x + w, y },
@@ -536,35 +530,33 @@ void add_gradient_rectangle(GL_Scene *scene, float x, float y, float w, float h,
 		i32 corner = corners[i];
 		Vector2 pos = positions[corner];
 		Vector4 color = corner_colors[corner];
-		data[i*stride] = pos.x;
-		data[i*stride+1] = pos.y;
-		data[i*stride+2] = 0.0f;
-		data[i*stride+3] = color.x;
-		data[i*stride+4] = color.y;
-		data[i*stride+5] = color.z;
-		data[i*stride+6] = color.w;
-		data[i*stride+7] = 0.0f;
-		data[i*stride+8] = 0.0f;
-		data[i*stride+9] = -1.0f;
+		data[i*vertex_size] = pos.x;
+		data[i*vertex_size+1] = pos.y;
+		data[i*vertex_size+2] = 0.0f;
+		data[i*vertex_size+3] = color.x;
+		data[i*vertex_size+4] = color.y;
+		data[i*vertex_size+5] = color.z;
+		data[i*vertex_size+6] = color.w;
+		data[i*vertex_size+7] = 0.0f;
+		data[i*vertex_size+8] = 0.0f;
+		data[i*vertex_size+9] = -1.0f;
 	}
-	finalize_add_command(scene);
+	vertices->length += max_verts*vertex_size;
 }
 
 /* The shape of the slider: like add_gradient_rectangle, but with rounded left and right ends. Each
 end is a solid color (corner_colors[0] and corner_colors[1]. Again x, y = bottom left. */
-void add_gradient_rectangle_rounded_ends(GL_Scene *scene, float x, float y, float w, float h,
+void add_gradient_rectangle_rounded_ends(Scene *scene, float x, float y, float w, float h,
 	float radius, i32 segments_per_corner, Vector4 *corner_colors)
 {
 	add_gradient_rectangle(scene, x+radius, y, w-2.0f*radius, h, corner_colors);
-	Vector2 left_corners[4] = { { x, y-h }, { x, y }, { x+radius, y }, { x+radius, y-h } };
+	Vector2 left_corners[4] = { { x, y }, { x, y+h }, { x+radius, y+h }, { x+radius, y } };
 	bool left_rounded[4] = { true, true, false, false };
-	add_rounded_quad(scene, left_corners, left_rounded, radius, segments_per_corner,
-		corner_colors[0]);
-	Vector2 right_corners[4] = { { x+w-radius, y-h }, { x+w-radius, y }, { x+w, y },
-	                             { x+w, y-h } };
+	add_rounded_quad(scene, left_corners, left_rounded, radius, corner_colors[0]);
+	Vector2 right_corners[4] = { { x+w-radius, y }, { x+w-radius, y+h }, { x+w, y+h },
+	                             { x+w, y } };
 	bool right_rounded[4] = { false, false, true, true };
-	add_rounded_quad(scene, right_corners, right_rounded, radius, segments_per_corner,
-		corner_colors[1]);
+	add_rounded_quad(scene, right_corners, right_rounded, radius, corner_colors[1]);
 }
 
 void draw_gradient_square_rgb(State *st, int x, int y, int size, int which_fixed, float fixed_val)
@@ -576,15 +568,15 @@ void draw_gradient_square_rgb(State *st, int x, int y, int size, int which_fixed
 			float c2 = i ? 1.0f : 0.0f;
 			float f = fixed_val;
 			if (which_fixed == 0) {
-				corner_cols[i*2+j] =  (Vector4) { f, c1, c2, 1.0f };
+				corner_cols[(1-i)*2+j] = (Vector4) { f, c1, c2, 1.0f };
 			} else if (which_fixed == 1) { // green
-				corner_cols[i*2+j] = (Vector4) { c2, f, c1, 1.0f };
+				corner_cols[(1-i)*2+j] = (Vector4) { c2, f, c1, 1.0f };
 			} else if (which_fixed == 2) { // blue
-				corner_cols[i*2+j] = (Vector4) { c1, c2, f, 1.0f };
+				corner_cols[(1-i)*2+j] = (Vector4) { c1, c2, f, 1.0f };
 			}
 		}
 	}
-	add_gradient_rectangle(st->main_scene, x, y+size, size, size, corner_cols);
+	add_gradient_rectangle(st->main_scene, x, y, size, size, corner_cols);
 }
 
 void draw_gradient_square_hsv(struct state *st, int x, int y, int size, int which_fixed,
@@ -596,31 +588,35 @@ void draw_gradient_square_hsv(struct state *st, int x, int y, int size, int whic
 			float c1 = j ? 1.0f : 0.0f;
 			float c2 = i ? 1.0f : 0.0f;
 			if (which_fixed == 0) { // hue
-				corner_cols[i*2+j] =  (Vector4) { fixed_val, c1, c2, 1.0f };
+				corner_cols[(1-i)*2+j] =  (Vector4) { fixed_val, c1, c2, 1.0f };
 			} else if (which_fixed == 1) { // saturation
-				corner_cols[i*2+j] = (Vector4) { c1, fixed_val, c2, 1.0f };
+				corner_cols[(1-i)*2+j] = (Vector4) { c1, fixed_val, c2, 1.0f };
 			}
 		}
 	}
-	add_gradient_rectangle(st->hsv_grad_scene, x, y+size, size, size, corner_cols);
+	add_gradient_rectangle(st->hsv_grad_scene, x, y, size, size, corner_cols);
 }
 
 void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct state *st)
 {
     {
-	    GL_Scene *scene = st->hsv_grad_scene;
-	    float *data = scene->vertices + scene->vertex_size*scene->n;
-	    scene->n += 360*3;
-    	float x_ndc = x * (2.0f / scene->viewport_w) - 1.0f;
-    	float y_ndc = y * (-2.0f / scene->viewport_w) + scene->y_scale;
-    	float r_ndc = r *(2.0f / scene->viewport_w);
-	    i32 stride = scene->vertex_size;
+    	Scene *scene = st->hsv_grad_scene;
+		Render_Context *context = scene_get_and_activate_context(scene);
+		Float_Dynarray *vertices = context_get_vertices(context);
+		i32 vertex_size = context_get_vertex_size(context);
+		float xf = x, yf = y, rf = r;
+		scene_transform_xy(scene, context, &xf, &yf);
+		context_transform_1(context, &rf);
+		u64 max_verts = 360 * 3;
+		dynarray_expand_by(vertices, max_verts * vertex_size);
+		// context+
+	    float *data = vertices->d + vertices->length;
 	    for (int i=0; i<360; i++) {
 	    	float angle1 = 2*F_PI*i/360.0f;
 	    	float angle2 = 2*F_PI*(i+1)/360.0f;
-	    	i32 offset = 3*i*stride;
-	    	data[offset] = x_ndc + r_ndc*cos(angle1);
-	    	data[offset+1] = y_ndc + r_ndc*sin(angle1);
+	    	i32 offset = 3*i*vertex_size;
+	    	data[offset] = xf + rf*cos(angle1);
+	    	data[offset+1] = yf + rf*sin(angle1);
 	    	data[offset+2] = 0.0f;
 	    	data[offset+3] = i / 360.0f;
 	    	data[offset+4] = 1.0f;
@@ -629,38 +625,38 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 	    	data[offset+7] = 0.0f;
 	    	data[offset+8] = 0.0f;
 	    	data[offset+9] = 0.0f;
-	    	data[offset+stride] = x_ndc + r_ndc*cos(angle2);
-	    	data[offset+stride+1] = y_ndc + r_ndc*sin(angle2);
-	    	data[offset+stride+2] = 0.0f;
-	    	data[offset+stride+3] = (i+1) / 360.0f;
-	    	data[offset+stride+4] = 1.0f;
-	    	data[offset+stride+5] = fixed_val;
-	    	data[offset+stride+6] = 1.0f;
-	    	data[offset+stride+7] = 0.0f;
-	    	data[offset+stride+8] = 0.0f;
-	    	data[offset+stride+9] = -1.0f;
-	    	data[offset+2*stride] = x_ndc;
-	    	data[offset+2*stride+1] = y_ndc;
-	    	data[offset+2*stride+2] = 0.0f;
-	    	data[offset+2*stride+3] = i / 360.0f;
-	    	data[offset+2*stride+4] = 0.0f;
-	    	data[offset+2*stride+5] = fixed_val;
-	    	data[offset+2*stride+6] = 1.0f;
-	    	data[offset+2*stride+7] = 0.0f;
-	    	data[offset+2*stride+8] = 0.0f;
-	    	data[offset+2*stride+9] = -1.0f;
+	    	data[offset+vertex_size] = xf + rf*cos(angle2);
+	    	data[offset+vertex_size+1] = yf + rf*sin(angle2);
+	    	data[offset+vertex_size+2] = 0.0f;
+	    	data[offset+vertex_size+3] = (i+1) / 360.0f;
+	    	data[offset+vertex_size+4] = 1.0f;
+	    	data[offset+vertex_size+5] = fixed_val;
+	    	data[offset+vertex_size+6] = 1.0f;
+	    	data[offset+vertex_size+7] = 0.0f;
+	    	data[offset+vertex_size+8] = 0.0f;
+	    	data[offset+vertex_size+9] = -1.0f;
+	    	data[offset+2*vertex_size] = xf;
+	    	data[offset+2*vertex_size+1] = yf;
+	    	data[offset+2*vertex_size+2] = 0.0f;
+	    	data[offset+2*vertex_size+3] = i / 360.0f;
+	    	data[offset+2*vertex_size+4] = 0.0f;
+	    	data[offset+2*vertex_size+5] = fixed_val;
+	    	data[offset+2*vertex_size+6] = 1.0f;
+	    	data[offset+2*vertex_size+7] = 0.0f;
+	    	data[offset+2*vertex_size+8] = 0.0f;
+	    	data[offset+2*vertex_size+9] = -1.0f;
 	    }
-		finalize_add_command(scene);
+		vertices->length += max_verts*vertex_size;
 	}
 	// tick marks
-	float dpi = st->dpi;
+	float dpi = st->window->scale;
 	for (float ang=0.0f; ang<360.0f; ang+=30.0) {
 		float dx = cosf(ang*2*F_PI/360.0f);
 		float dy = sinf(ang*2*F_PI/360.0f);
 		int length = 5*dpi;
 		Vector2 start = { x + r * dx, y + r * dy };
 		Vector2 end = { start.x + length * dx, start.y + length * dy };
-		add_line(st->main_scene, start.x, start.y, end.x, end.y, 2.0*dpi, st->text_color);
+		add_line_ext(st->main_scene, start.x, start.y, end.x, end.y, 2.0*dpi, st->text_color);
 	}
 	// s arrow
 	int arrow_len = 60*dpi;
@@ -671,12 +667,12 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 	float ah_ang = (180-28)*2*F_PI/360.0f;
 	float ah_w = 2.0*dpi;
 	Vector2 arrow_end = (Vector2) { x+r+arrow_len, y};
-	add_line(st->main_scene, x+r+12*dpi, y, arrow_end.x, arrow_end.y, arrow_w, st->text_color);
+	add_line_ext(st->main_scene, x+r+12*dpi, y, arrow_end.x, arrow_end.y, arrow_w, st->text_color);
 	Vector2 ah_left = { arrow_end.x + ah_len*cosf(ah_ang), arrow_end.y + ah_len*sinf(ah_ang)};
 	Vector2 ah_right = { arrow_end.x + ah_len*cosf(-ah_ang), arrow_end.y + ah_len*sinf(-ah_ang)};
-	add_line(st->main_scene, arrow_end.x, arrow_end.y, ah_left.x, ah_left.y, ah_w, st->text_color);
-	add_line(st->main_scene, arrow_end.x, arrow_end.y, ah_right.x, ah_right.y, ah_w, st->text_color);
-	add_text(st->main_scene, st->text_font_medium, "S", arrow_end.x-16.0*dpi, arrow_end.y-20.0*dpi,
+	add_line_ext(st->main_scene, arrow_end.x, arrow_end.y, ah_left.x, ah_left.y, ah_w, st->text_color);
+	add_line_ext(st->main_scene, arrow_end.x, arrow_end.y, ah_right.x, ah_right.y, ah_w, st->text_color);
+	add_text(st->main_scene, st->font, FONT_MEDIUM_PX, "S", arrow_end.x-16.0*dpi, arrow_end.y-20.0*dpi,
 		st->text_color);
 	// h arrow
 	float harr_d = 30*dpi;
@@ -694,11 +690,10 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 	Vector2 h_ah_right = { harr_end.x+ah_len*cosf(harr_dir_ang-ah_ang+adj),
 		harr_end.y-ah_len*sinf(harr_dir_ang-ah_ang+adj)};
 	Vector4 c3 = st->text_color;
-	// Todo: the arrowhead might still be a little off of the arrow body. Renderdoc it.
-	add_line(st->main_scene, harr_end.x, harr_end.y, h_ah_left.x, h_ah_left.y, ah_w, c3);
-	add_line(st->main_scene, harr_end.x, harr_end.y, h_ah_right.x, h_ah_right.y, ah_w,
+	add_line_ext(st->main_scene, harr_end.x, harr_end.y, h_ah_left.x, h_ah_left.y, ah_w, c3);
+	add_line_ext(st->main_scene, harr_end.x, harr_end.y, h_ah_right.x, h_ah_right.y, ah_w,
 		c3);
-	add_text(st->main_scene, st->text_font_medium, "H", harr_end.x+18*dpi, harr_end.y-2*dpi,
+	add_text(st->main_scene, st->text_font_medium, FONT_MEDIUM_PX, "H", harr_end.x+18*dpi, harr_end.y-2*dpi,
 		st->text_color);
 	add_circle_arc(st->main_scene, x, y, r+harr_d+harr_w/2, 2*F_PI*harr_ang1/360.0f,
 		2*F_PI*harr_ang2/360.0f, 30, 2.0f*dpi, st->text_color);
@@ -724,11 +719,12 @@ void draw_axes(int x, int y, int w, int h, float scale, struct state *st)
 		x_label = color_strings[1][0];
 		y_label = color_strings[1][2];
 	}
+	float dpi = st->window->scale;
 	// x axis label
-	add_text(st->main_scene, st->text_font_medium, x_label,
+	add_text(st->main_scene, st->font, FONT_MEDIUM_PX, x_label,
 			   x + 512*scale/2 - label_size, y + 512*scale + h, label_color);
 	// y axis label
-	add_text(st->main_scene, st->text_font_medium, y_label,
+	add_text(st->main_scene, st->text_font_medium, FONT_MEDIUM_PX, y_label,
 			   x - h, y + 512*scale/2, label_color);
 	// x axis
 	for (int ix = x; ix < (x+512*scale); ix += tick_sep) {
@@ -741,10 +737,11 @@ void draw_axes(int x, int y, int w, int h, float scale, struct state *st)
 	}
 }
 
-bool tab_select(Tab_Select *self, Vector2 pos, enum cursor_state cs)
+bool tab_select(Tab_Select *self, Input_State *input)
 {
 	State *st = self->st;
-	float dpi = st->dpi;
+	float dpi = st->window->scale;
+	Vector2 pos = { input->pointer_x, input->pointer_y };
 	int i = self->sel_i;
 	Vector4 *active = self->active_colors;
 	Vector4 *inactive = self->inactive_colors;
@@ -769,11 +766,11 @@ bool tab_select(Tab_Select *self, Vector2 pos, enum cursor_state cs)
 	float text_y = y + h/2.0f + FONT_SMALL_PX*CENTER_EM;
 	Vector2 left_corners[4] = { { x, y }, { x, y+h }, { x+tw, y+h }, { x+tw, y }};
 	bool left_rounded[4] = { self->top, !self->top, false, false };
-	add_rounded_quad(st->main_scene, left_corners, left_rounded, rnd, segs, color1);
-	add_rounded_quad_outline(st->main_scene, left_corners, left_rounded, rnd, segs, 1.0f,
+	add_rounded_quad_ext(st->main_scene, left_corners, left_rounded, rnd, segs, color1);
+	add_rounded_quad_outline_ext(st->main_scene, left_corners, left_rounded, rnd, segs, 1.0f,
 		self->border_color);
 	text[0] = self->labels[0];
-	add_text(st->main_scene, st->text_font_small, text, x + (tw - st->small_char_width)/2.0,
+	add_text(st->main_scene, st->font, FONT_SMALL_PX, text, x + (tw - st->small_char_width)/2.0,
 		text_y, text_color1);
 	float x_mid = x + tw;
 	int last_x = x_mid + tw;
@@ -782,25 +779,25 @@ bool tab_select(Tab_Select *self, Vector2 pos, enum cursor_state cs)
 	Vector2 right_corners[4] = { { last_x, y }, { last_x, y+h }, { last_x+last_w, y+h },
 		{ last_x+last_w, y } };
 	bool right_rounded[4] = { false, false, !self->top, self->top };
-	add_rounded_quad(st->main_scene, right_corners, right_rounded, rnd, segs, color3);
-	add_rounded_quad_outline(st->main_scene, right_corners, right_rounded, rnd, segs, 1.0f,
+	add_rounded_quad_ext(st->main_scene, right_corners, right_rounded, rnd, segs, color3);
+	add_rounded_quad_outline_ext(st->main_scene, right_corners, right_rounded, rnd, segs, 1.0f,
 		self->border_color);
 	text[0] = self->labels[2];
-	add_text(st->main_scene, st->text_font_small, text,
+	add_text(st->main_scene, st->font, FONT_SMALL_PX, text,
 		last_x + (last_w - st->small_char_width)/2.0, text_y, text_color3);
 
 	add_rectangle(st->main_scene, x_mid, self->y, tw, self->h, color2);
-	add_rectangle_outline(st->main_scene, x_mid, self->y, tw, self->h, 1*dpi,
+	add_rectangle_outline_ext(st->main_scene, x_mid, self->y, tw, self->h, 1*dpi,
 		self->border_color);
 	text[0] = self->labels[1];
-	add_text(st->main_scene, st->text_font_small, text, x_mid + (tw - st->small_char_width)/2.0,
+	add_text(st->main_scene, st->font, FONT_SMALL_PX, text, x_mid + (tw - st->small_char_width)/2.0,
 		text_y, text_color2);
 
 	bool updated = false;
 	float hover_targets[3] = { 0.0f, 0.0f, 0.0f };
 	if (CheckCollisionPointRec(pos, (Rectangle) { self->x, self->y, self->w, self->h})) {
 		int tab_i = CLAMP((pos.x - self->x) / (self->w / 3.0f), 0, 2);
-		if (cs == CURSOR_START && tab_i != self->sel_i) {
+		if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT] && tab_i != self->sel_i) {
 			self->sel_i = tab_i;
 			updated = true;
 		}
@@ -818,12 +815,11 @@ bool tab_select(Tab_Select *self, Vector2 pos, enum cursor_state cs)
 	return updated;
 }
 
-bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int key,
-	struct color_info *ci)
+bool number_select(Number_Select *self, Input_State *input, struct color_info *ci)
 {
 	State *st = self->st;
 	Vector4 rgb = ci->rgb;
-	float dpi = st->dpi;
+	float dpi = st->window->scale;
 	int new_value = self->value;
 	/*
 	// if changing font, may need to measure.
@@ -849,7 +845,7 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 	bool hovered = false;
 	float rnd = 7.0f;
 	i32 segs = 15;
-	add_rounded_rectangle(st->main_scene, self->x - 10*dpi, self->y, self->w, self->h,
+	add_rounded_rectangle_ext(st->main_scene, self->x - 10*dpi, self->y, self->w, self->h,
 		rnd, segs, hl_color);
 	char text[21];
 	memset(text, 0, 21);
@@ -880,81 +876,83 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 		int x = self->x;
 		char c = text[d_i];
 		text[d_i] = '\0';
-		add_text(st->main_scene, st->text_font_medium, text, x, text_y, st->text_color);
+		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, text, x, text_y, st->text_color);
 		text[d_i] = c;
 		x += d_i*(st->medium_char_width + 1.5*dpi);
 		c = text[d_i + d_chars];
-		add_text(st->main_scene, st->text_font_medium, &text[d_i], x, text_y,
+		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, &text[d_i], x, text_y,
 			st->text_color.x < 0.5f ? hex2color(0x303030ff) : hex2color(0xd8d8d8ff));
 		text[d_i + d_chars] = c;
 		x += d_chars * (st->medium_char_width + 1.5*dpi);
-		add_text(st->main_scene, st->text_font_medium, &text[d_i+d_chars], x, text_y,
+		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, &text[d_i+d_chars], x, text_y,
 			st->text_color);
 	} else {
 		snprintf(text, 21, self->fmt,
 			self->input_active ? self->input_n : self->value);
-		add_text(st->main_scene, st->text_font_medium, text, self->x, text_y,
+		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, text, self->x, text_y,
 			st->text_color);
 	}
+	Vector2 pos = { input->pointer_x, input->pointer_y };
 	bool hit = CheckCollisionPointRec(pos, (Rectangle) { self->x, self->y, self->w, self->h });
 	// xx can this logic be simplified?
-	if ((hit && cs != CURSOR_DOWN) || self->dragging) {
+	if ((hit && !input->mouse_down[AU_MOUSE_BUTTON_LEFT]) || self->dragging) {
 		hovered = true;
 	}
 	// xx self->dragging here ensures that the click that's ending now started on the widget, but
 	// not that it never left.
-	if (hit && cs == CURSOR_STOP && self->clicking) {
+	if (hit && input->mouse_released[AU_MOUSE_BUTTON_LEFT] && self->clicking) {
 		self->selected = true;
 	}
-	if (!hit && cs == CURSOR_START) {
+	if (!hit && input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
 		self->selected = false;
 		self->input_active = false;
 	}
 	if (!hit) {
 		self->clicking = false;
 	}
-	if (self->selected && key) {
-		int key_num = -1;
-		if (key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_0) {
-			key_num = (key-SDL_SCANCODE_1+1) % 10;
-		} else if (key >= SDL_SCANCODE_KP_1 && key <= SDL_SCANCODE_KP_0) {
-			key_num = (key-SDL_SCANCODE_KP_1+1) % 10;
-		}
-		if (!self->input_active && key_num >= 0) {
-			// This breaks input if self->min > 9, but that doesn't apply to us and would require
-			// some special logic.
-			if (key_num >= self->min && key_num <= self->max) {
-				self->input_active = true;
-				self->input_n = key_num;
+	if (self->selected) {
+		for (i64 i = 0; i<input->text_entered->length; i++) {
+			i32 key = input->text_entered->d[i];
+			int key_num = -1;
+			if (key >= '0' && key <= '9') {
+				key_num = key-'0';
 			}
-		} else if (self->input_active && key_num >= 0) {
-			int new_input_n = 10 * self->input_n + key_num;
-			if (new_input_n >= self->min && new_input_n <= self->max) {
-				self->input_n = new_input_n;
+			if (!self->input_active && key_num >= 0) {
+				// This breaks input if self->min > 9, but that doesn't apply to us and would require
+				// some special logic.
+				if (key_num >= self->min && key_num <= self->max) {
+					self->input_active = true;
+					self->input_n = key_num;
+				}
+			} else if (self->input_active && key_num >= 0) {
+				int new_input_n = 10 * self->input_n + key_num;
+				if (new_input_n >= self->min && new_input_n <= self->max) {
+					self->input_n = new_input_n;
+				}
 			}
 		}
-		if (self->input_active && key == SDL_SCANCODE_BACKSPACE) {
+		if (self->input_active && input->key_pressed[AU_KEY_BACKSPACE]) {
 			if (self->input_n >= 10) {
 				self->input_n /= 10;
 			} else {
 				self->input_active = false;
 			}
 		}
-		if (self->input_active && key == SDL_SCANCODE_ESCAPE) {
+		if (self->input_active && input->key_pressed[AU_KEY_ESCAPE]) {
 			self->input_active = false;
 		}
-		if (self->input_active && key == SDL_SCANCODE_RETURN) {
+		if (self->input_active && input->key_pressed[AU_KEY_ENTER]) {
 			new_value = self->input_n;
 			self->input_active = false;
 		}
 	}
-	if (hit && cs == CURSOR_START) {
+	if (hit && input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
 		self->dragging = true;
 		self->clicking = true;
 		self->drag_start_y = pos.y;
 		self->drag_start_value = self->value;
 	}
-	if (cs == CURSOR_STOP) {
+	if (input->mouse_released[AU_MOUSE_BUTTON_LEFT]) {
 		self->dragging = false;
 	}
 	if (self->dragging) {
@@ -991,8 +989,8 @@ bool number_select(Number_Select *self, Vector2 pos, enum cursor_state cs, int k
 }
 
 bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool wrap_around,
-	State *st, float anim_vdt, int x, int y, int w, int h, float drag_pixels_per_value, Vector2 pos,
-	enum cursor_state cs, int key, struct color_info *ci)
+	State *st, float anim_vdt, int x, int y, int w, int h, float drag_pixels_per_value,
+	Input_State *input, struct color_info *ci)
 {
 	ns->fmt = fmt;
 	ns->min = min;
@@ -1005,38 +1003,26 @@ bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool 
 	ns->w = w;
 	ns->h = h;
 	ns->drag_pixels_per_value = drag_pixels_per_value;
-	return number_select(ns, pos, cs, key, ci);
+	return number_select(ns, input, ci);
 }
 
-void draw_ui_and_respond_input(struct state *st)
+void draw_ui_and_respond_input(struct state *st, Input_State *input)
 {
-	// frame counter for debugging
-	// static u64 frame_n = 0;
-	// setup input
-	if (st->mouse_down) {
-		if (st->cursor_state == CURSOR_UP || st->cursor_state == CURSOR_STOP)
-			st->cursor_state = CURSOR_START;
-		else if (st->cursor_state == CURSOR_START)
-			st->cursor_state = CURSOR_DOWN;
-	} else {
-		if (st->cursor_state == CURSOR_DOWN || st->cursor_state == CURSOR_START) {
-			st->cursor_state = CURSOR_STOP;
-			st->square_dragging = false;
-			st->val_slider_dragging = false;
-		} else if (st->cursor_state == CURSOR_STOP)
-			st->cursor_state = CURSOR_UP;
-	}
-	Vector2 pos = GetMousePosition(st);
 	// consume one keypress per frame
-	int key = st->key_pressed;
 	float anim_vdt = 0.2f;
+
+	Vector2 pos = { input->pointer_x, input->pointer_y };
+	if (input->mouse_released[AU_MOUSE_BUTTON_LEFT]) {
+		st->square_dragging = false;
+		st->val_slider_dragging = false;
+	}
 
 	struct color_info ci = current_color(st);
 	Vector4 cur_color = ci.rgb;
 	Vector4 cur_hsv = ci.hsv;
 	glClearColor(cur_color.x, cur_color.y, cur_color.z, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
-	float dpi = st->dpi;
+	float dpi = st->window->scale;
 	if (luminance(cur_color.x, cur_color.y, cur_color.z) >= 0.179) {
 		st->text_color = BLACK;
 	} else {
@@ -1065,9 +1051,9 @@ void draw_ui_and_respond_input(struct state *st)
 	float ui_h = st->outfile.path ? 805*dpi : 775*dpi;
 	float ui_w = 532*dpi;
 	float scale = dpi;
-	if (st->screenHeight < ui_h || st->screenWidth < ui_w) {
-		float scaledown_h = (st->screenHeight / ui_h);
-		float scaledown_w = (st->screenWidth / ui_w);
+	if (st->main_scene->h < ui_h || st->main_scene->w < ui_w) {
+		float scaledown_h = (st->main_scene->h / ui_h);
+		float scaledown_w = (st->main_scene->w / ui_w);
 		scale = dpi * MIN(scaledown_w, scaledown_h);
 	}
 
@@ -1075,8 +1061,8 @@ void draw_ui_and_respond_input(struct state *st)
 	int out_ind_top_w = 512*scale;
 	int out_ind_bottom_w = 462*scale;
 	int out_ind_h = 30*scale;
-	int out_ind_top_x = (st->screenWidth - out_ind_top_w) / 2.0f;
-	int out_ind_bottom_x = (st->screenWidth - out_ind_bottom_w) / 2.0f;
+	int out_ind_top_x = (st->main_scene->w - out_ind_top_w) / 2.0f;
+	int out_ind_bottom_x = (st->main_scene->w - out_ind_bottom_w) / 2.0f;
 	int out_ind_top_y = 0;
 	int out_ind_bottom_y = 0;
 	if (st->outfile.path) {
@@ -1092,18 +1078,18 @@ void draw_ui_and_respond_input(struct state *st)
 		i32 text_x = out_ind_bottom_x +
 			(out_ind_bottom_w - st->outfile.shortened_path_len*(st->small_char_width+1.0*scale))/2.0f;
 		i32 text_y = out_ind_top_y + out_ind_h/2.0f + FONT_SMALL_PX*CENTER_EM;
-		add_rounded_quad(st->main_scene, out_ind_verts, out_ind_rounded, 12*scale, 12,
+		add_rounded_quad_ext(st->main_scene, out_ind_verts, out_ind_rounded, 12*scale, 12,
 			out_ind_bgcolor);
-		add_text_utf32(st->main_scene, st->text_font_small, st->outfile.shortened_path_utf32,
+		add_text_utf32(st->main_scene, st->font, FONT_SMALL_PX, st->outfile.shortened_path_utf32,
 			text_x, text_y, WHITE);
 	}
 
 	// gradient square or circle
 	int grad_y_axis_w = 30*scale;
 	int grad_x_axis_h = 30*scale;
-	int grad_square_x = MAX(grad_y_axis_w, (st->screenWidth - 512*scale)/2);
+	int grad_square_x = MAX(grad_y_axis_w, (st->main_scene->w - 512*scale)/2);
 	// The entire color picker UI is around 775 pixels tall; center it with slightly more margin below.
-	int grad_square_y = out_ind_bottom_y + (st->screenHeight - out_ind_bottom_y - 775*scale) * 0.4f;
+	int grad_square_y = out_ind_bottom_y + (st->main_scene->h - out_ind_bottom_y - 775*scale) * 0.4f;
 	int grad_square_y_end = grad_square_y + 512*scale;
 	int grad_square_x_end = grad_square_x + 512*scale;
 	bool grad_square = true;
@@ -1134,14 +1120,14 @@ void draw_ui_and_respond_input(struct state *st)
 		ind_x = grad_circle_x + grad_circle_r*st->y_value*cosf(st->x_value * 2*F_PI);
 		ind_y = grad_circle_y - grad_circle_r*st->y_value*sinf(st->x_value * 2*F_PI);
 	}
-	add_circle_outline(st->main_scene, ind_x, ind_y, 6*scale, 20, 1*scale, st->text_color);
+	add_circle_outline_ext(st->main_scene, ind_x, ind_y, 6*scale, 20, 1*scale, st->text_color);
 	int r2 = 4*scale;
 	int r3 = 8*scale;
-	add_line(st->main_scene, ind_x - r3, ind_y, ind_x - r2, ind_y, 1*scale, st->text_color);
-	add_line(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*scale, st->text_color);
-	add_line(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*scale, st->text_color);
-	add_line(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*scale, st->text_color);
-	if (st->cursor_state == CURSOR_START || st->square_dragging) {
+	add_line_ext(st->main_scene, ind_x - r3, ind_y, ind_x - r2, ind_y, 1*scale, st->text_color);
+	add_line_ext(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*scale, st->text_color);
+	add_line_ext(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*scale, st->text_color);
+	add_line_ext(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*scale, st->text_color);
+	if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT] || st->square_dragging) {
 		if (!st->square_dragging) {
 			Rectangle rec = {grad_square_x, grad_square_y, 512*scale, 512*scale};
 			Vector2 c = { grad_square_x + 512*scale/2, grad_square_y + 512*scale/2 };
@@ -1233,7 +1219,7 @@ void draw_ui_and_respond_input(struct state *st)
 	rgb_tabs.y = top_tabs_y;
 	rgb_tabs.w = top_tabs_w;
 	rgb_tabs.h = top_tabs_h;
-	if (tab_select(&rgb_tabs, pos, st->cursor_state)) {
+	if (tab_select(&rgb_tabs, input)) {
 		st->mode = 0;
 		st->which_fixed = rgb_tabs.sel_i;
 		update_color_or_mode(st, st->mode, st->which_fixed, ci);
@@ -1242,7 +1228,7 @@ void draw_ui_and_respond_input(struct state *st)
 	hsv_tabs.y = main_button_y + main_button_h;
 	hsv_tabs.w = main_button_w;
 	hsv_tabs.h = top_tabs_h;
-	if (tab_select(&hsv_tabs, pos, st->cursor_state)) {
+	if (tab_select(&hsv_tabs, input)) {
 		st->mode = 1;
 		st->which_fixed = hsv_tabs.sel_i;
 		update_color_or_mode(st, st->mode, st->which_fixed, ci);
@@ -1254,20 +1240,20 @@ void draw_ui_and_respond_input(struct state *st)
 		main_button_hover_v * hov_bright);
 	add_rectangle(st->main_scene, main_button_x, main_button_y, main_button_w, main_button_h,
 		fixed_button_color);
-	add_rectangle_outline(st->main_scene, main_button_x, main_button_y, main_button_w,
+	add_rectangle_outline_ext(st->main_scene, main_button_x, main_button_y, main_button_w,
 		main_button_h, 1*scale, buttons_border_color);
 	i32 main_button_text_x = main_button_x + main_button_w/2.0f-st->large_char_width/2.0f;
 	i32 main_button_text_y = main_button_y + main_button_h/2.0f+FONT_LARGE_PX*CENTER_EM;
-	add_text(st->main_scene, st->text_font_large, color_strings[st->mode][st->which_fixed],
+	add_text(st->main_scene, st->font, FONT_LARGE_PX, color_strings[st->mode][st->which_fixed],
 		main_button_text_x, main_button_text_y, WHITE);
 	if (CheckCollisionPointRec(pos, (Rectangle) { main_button_x, main_button_y, main_button_w,
 		ind_tabs_y-main_button_y})) {
-		if (st->cursor_state == CURSOR_START) {
+		if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
 			st->which_fixed = (st->which_fixed + 1) % 3;
 			update_color_or_mode(st, st->mode, st->which_fixed, ci);
 			main_button_hover_v = 0;
 		}
-		if (st->cursor_state != CURSOR_DOWN) {
+		if (!input->mouse_down[AU_MOUSE_BUTTON_LEFT]) {
 			main_button_hover_v = MIN(main_button_hover_v + anim_vdt, 1.0);
 		}
 	} else {
@@ -1313,14 +1299,14 @@ void draw_ui_and_respond_input(struct state *st)
 		// Todo: because outline color is the same as fixed_indication_color for hsv modes, the slider
 		// can completely disappear in rare cases.
 		Vector4 outline_color = bright_grey_bg;
-		add_rounded_rectangle(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f, val_slider_w+out_w,
+		add_rounded_rectangle_ext(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f, val_slider_w+out_w,
 			bar_h+out_w, 12.0f*scale, 10, outline_color);
-		GL_Scene *scene = st->mode == 1 ? st->hsv_grad_scene : st->main_scene;
-		add_gradient_rectangle_rounded_ends(scene, val_slider_x, val_slider_y+bar_h/2.0f,
+		Scene *scene = st->mode == 1 ? st->hsv_grad_scene : st->main_scene;
+		add_gradient_rectangle_rounded_ends(scene, val_slider_x, val_slider_y-bar_h/2.0f,
 			val_slider_w, bar_h, 8.0f*scale, 10, corner_cols);
-		add_circle(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
+		add_circle_ext(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
 			30, fixed_indication_color);
-		if (st->cursor_state == CURSOR_START || st->val_slider_dragging) {
+		if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT] || st->val_slider_dragging) {
 			if (!st->val_slider_dragging && CheckCollisionPointRec(pos,
 				(Rectangle) { val_slider_x - circle_r, val_slider_y-val_slider_h/2.0f,
 					val_slider_w+2*circle_r, val_slider_h } )) {
@@ -1338,26 +1324,26 @@ void draw_ui_and_respond_input(struct state *st)
 	// rgb number selectors
 	bool rgb_num_select_changed = false;
 	int rgb_select_w = 6*(st->medium_char_width + 1.5*scale);
-	int r_select_x = (st->screenWidth - st->medium_label_width)/2.0f;
+	int r_select_x = (st->main_scene->w - st->medium_label_width)/2.0f;
 	int r_select_y = val_slider_y + 90*scale;
 	static Number_Select r_num_select;
 	r_num_select.value = cur_color.x * 255.0f;
 	if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt, r_select_x,
-		r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, pos, st->cursor_state, key, &ci)) {
+		r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, input, &ci)) {
 		rgb_num_select_changed = true;
 	}
 	static Number_Select g_num_select;
 	g_num_select.value = cur_color.y * 255.0f;
 	if (number_select_immargs(&g_num_select, "g:%d ", 0, 255, false, st, anim_vdt,
 		r_num_select.x+r_num_select.w, r_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
-		pos, st->cursor_state, key, &ci)) {
+		input, &ci)) {
 		rgb_num_select_changed = true;
 	}
 	static Number_Select b_num_select;
 	b_num_select.value = cur_color.z * 255.0f;
 	if (number_select_immargs(&b_num_select, "b:%d ", 0, 255, false, st, anim_vdt,
 		g_num_select.x+g_num_select.w, g_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
-		pos, st->cursor_state, key, &ci)) {
+		input, &ci)) {
 		rgb_num_select_changed = true;
 	}
 	if (rgb_num_select_changed) {
@@ -1379,7 +1365,7 @@ void draw_ui_and_respond_input(struct state *st)
 		(int)(cur_color.z*255.0f));
 	int hex_label_x = b_num_select.x + b_num_select.w;
 	int hex_label_y = r_num_select.y + r_num_select.h/2.0f + FONT_MEDIUM_PX*CENTER_EM;
-	add_text(st->main_scene, st->text_font_medium, value, hex_label_x, hex_label_y,
+	add_text(st->main_scene, st->font, FONT_MEDIUM_PX, value, hex_label_x, hex_label_y,
 		st->text_color);
 	// hsv number selectors
 	bool hsv_num_select_changed = false;
@@ -1388,21 +1374,21 @@ void draw_ui_and_respond_input(struct state *st)
 	h_num_select.value = cur_hsv.x * 360.0f;
 	if (number_select_immargs(&h_num_select, "h:%d\xc2\xb0", 0, 359, true, st, anim_vdt,
 		r_num_select.x, r_num_select.y + 35*scale, hsv_select_w, 30*scale, 800.0f/360.0f,
-		pos, st->cursor_state, key, &ci)) {
+		input, &ci)) {
 		hsv_num_select_changed = true;
 	}
 	static Number_Select s_num_select;
 	s_num_select.value = cur_hsv.y * 100.0f;
 	if (number_select_immargs(&s_num_select, "s:%d%% ", 0, 100, false, st, anim_vdt,
 		h_num_select.x+h_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
-		pos, st->cursor_state, key, &ci)) {
+		input, &ci)) {
 		hsv_num_select_changed = true;
 	}
 	static Number_Select v_num_select;
 	v_num_select.value = cur_hsv.z * 100.0f;
 	if (number_select_immargs(&v_num_select, "v:%d%% ", 0, 100, false, st, anim_vdt,
 		s_num_select.x+s_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
-		pos, st->cursor_state, key, &ci)) {
+		input, &ci)) {
 		hsv_num_select_changed = true;
 	}
 	if (hsv_num_select_changed) {
@@ -1481,117 +1467,28 @@ u32 color2abgrhex(Vector4 color) {
 	return ((u32) color.w << 24) + ((u32) color.z << 16) + ((u32) color.y << 8) + ((u32) color.x);
 }
 
-// An icon must have just two shapes: a background square and the foreground shape.
-i32 load_icon_svg_with_color(GL_Scene *scene, const void *data, u64 data_len, Vector4 color)
-{
-	u8* svg_copy = malloc(data_len + 1);
-	memcpy(svg_copy, data, data_len);
-	svg_copy[data_len] = 0;
-	NSVGimage* image = nsvgParse((char *) svg_copy, "px", 96);
-	i32 img_w = image->width;
-	i32 img_h = image->height;
-
-	NSVGshape *gear = image->shapes[0].next;
-	gear->fill.color = color2abgrhex(color);
-
-	struct NSVGrasterizer* rast = nsvgCreateRasterizer();
-	void *img_data = malloc(img_w*img_h*4);
-	nsvgRasterize(rast, image, 0,0,1, (u8 *) img_data, img_w, img_h, img_w*4);
-	i32 res = load_bitmap(scene, img_data, img_w, img_h, img_w*4);
-	free(svg_copy);
-	free(img_data);
-	return res;
-}
-
-void init_for_dpi(struct state *st, float dpi, float old_dpi, u32 *small_charset,
-	u32 small_charset_n)
-{
-	st->dpi = dpi;
-	// float ratio = dpi / old_dpi;
-	// int new_target_w = st->screenWidth * ratio;
-	// int new_target_h = st->screenHeight * ratio;
-	// if (new_target_w != st->screenWidth || new_target_h != st->screenHeight) {
-	// 	SDL_SetWindowSize(st->window, new_target_w, new_target_h);
-	// 	st->screenWidth = new_target_w;
-	// 	st->screenHeight = new_target_h;
-	// }
-
-	if (st->main_scene) {
-		destroy_scene(st->main_scene);
-		destroy_scene(st->hsv_grad_scene);
-	}
-	st->main_scene = create_scene(NULL, NULL, 10, 10000, true);
-	st->hsv_grad_scene = create_scene(hsv_grad_vertex_shader, hsv_grad_fragment_shader,
-		10, 361*3, true);
-
-	st->text_font_small = load_font_from_memory(st->main_scene, noto_sans_mono,
-		noto_sans_mono_len, FONT_SMALL_PX, small_charset, small_charset_n);
-	st->text_font_medium = load_font_from_memory(st->main_scene, noto_sans_mono,
-		noto_sans_mono_len, FONT_MEDIUM_PX, NULL, 0);
-	st->text_font_large = load_font_from_memory(st->main_scene, noto_sans_mono,
-		noto_sans_mono_len, FONT_LARGE_PX, NULL, 0);
-
-	// st->menu_icon = load_image_from_memory(st->main_scene, menu_24dp_material_svg,
-	// 	menu_24dp_material_svg_len, "svg");
-	// st->settings_icon = load_image_from_memory(st->main_scene, settings_24dp_material_svg,
-	// 	settings_24dp_material_svg_len, "svg");
-
-	st->medium_label_width = measure_text_width(st->main_scene, st->text_font_medium,
-		"r:255 g:255 b:255 hex:#ffffff");
-	st->small_char_width = measure_text_width(st->main_scene, st->text_font_small, "R");
-	st->medium_char_width = measure_text_width(st->main_scene, st->text_font_medium, "R");
-	st->large_char_width = measure_text_width(st->main_scene, st->text_font_large, "R");
-	st->small_font_max_ascent = st->main_scene->fonts[st->text_font_small]->max_ascent;
-	st->medium_font_max_ascent = st->main_scene->fonts[st->text_font_medium]->max_ascent;
-	st->large_font_max_ascent = st->main_scene->fonts[st->text_font_large]->max_ascent;
-}
-
-SDL_Surface* surface_from_memory(const u8* buffer, int size, u8 **bmp) {
-	int x, y, channels;
-	*bmp = stbi_load_from_memory (buffer, size, &x, &y, &channels, 4);
-
-    SDL_Surface* res = SDL_CreateRGBSurfaceFrom(*bmp, x, y, 32, x*4, 0xff, 0xff00, 0xff0000,
-    	0xff000000);
-    if (!res) {
-        fprintf(stderr, "SDL_CreateRGBSurfaceFrom failed: %s\n", SDL_GetError());
-        return NULL;
-    }
-//    stbi_image_free(bmp);
-    return res;
-}
-
 // Prevent UI from stoppping during an interactive resize on Windows.
-int on_resize_watcher(void* data, SDL_Event* event) {
-	State *st = (State *) data;
-	if (event->type != SDL_WINDOWEVENT ||
-	  event->window.event != SDL_WINDOWEVENT_RESIZED) {
-		return 0;
-	}
-	int drawable_w, drawable_h;
-	// Check for DPI changes
-	SDL_GL_GetDrawableSize(st->window, &drawable_w, &drawable_h);
-	st->screenWidth = drawable_w;
-	st->screenHeight = drawable_h;
+void on_resize_watcher(struct window *window, i32 old_width, i32 old_height) {
+	State *st = (State *) window->udata;
+	draw_ui_and_respond_input(st, window->input);
+	commit_changes(window);
+}
 
-	// Setup viewport and projection
-	glViewport(0, 0, drawable_w, drawable_h);
+void init_for_dpi(struct state *st, float dpi)
+{
+	st->small_char_width = measure_text_widthf(st->main_scene, st->font, FONT_SMALL_PX, "R");
+	st->medium_char_width = measure_text_widthf(st->main_scene, st->font, FONT_MEDIUM_PX, "R");
+	st->large_char_width = measure_text_widthf(st->main_scene, st->font, FONT_MEDIUM_PX, "R");
 
-	reset_scene(st->hsv_grad_scene, drawable_w, drawable_h);
-	reset_scene(st->main_scene, drawable_w, drawable_h);
-
-	draw_ui_and_respond_input(st);
-
-	end_frame();
-
-	SDL_GL_SwapWindow(st->window);
-  return 0;
+	st->medium_label_width = measure_text_width(st->main_scene, st->font, FONT_MEDIUM_PX,
+		"r:255 g:255 b:255 hex:#ffffff");
 }
 
 int main(int argc, char *argv[])
 {
-	struct state *st = (struct state *) calloc(1, sizeof(struct state));
-	st->screenWidth = 680;
-	st->screenHeight = 860;
+	arena_init(&app_arena);
+	struct state *st = (struct state *) aalloc(&app_arena, sizeof(struct state));
+	st->arena = &app_arena;
 	st->mode = 0;
 	st->which_fixed = 0;
 	st->fixed_value = 0.0f;
@@ -1644,65 +1541,34 @@ int main(int argc, char *argv[])
 		printf("Outfile: %s\n", st->outfile.path);
 	}
 
-	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-		errexit("SDL_Init failed: %s\n", SDL_GetError());
-	}
+	Window *window = window_create(&app_arena, 680, 860, "Quickpick", true);
+	st->window = window;
+	st->main_scene = &window->sc;
+	window->udata = st;
+	window->resize_callback = &on_resize_watcher;
 
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
+	st->hsv_grad_context = window_create_render_context(window, hsv_grad_vertex_shader,
+		hsv_grad_fragment_shader, 10, true);
+	st->hsv_grad_scene = scene_create_child_with_context(&window->sc, st->arena, 0, 0,
+		window->sc.w, window->sc.h, st->hsv_grad_context);
 
-	u8 *bmp;
-	SDL_Surface *icon_surface = surface_from_memory(quickpick_icon_png, quickpick_icon_png_len,
-		&bmp);
+	st->font = load_font_from_memory(st->main_scene, noto_sans_mono, noto_sans_mono_len);
 
-	st->window = SDL_CreateWindow("QuickPick",
-		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-		st->screenWidth, st->screenHeight,
-		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-	if (!st->window) {
-		errexit("SDL_CreateWindow failed: %s\n", SDL_GetError());
-	}
-
-	if (icon_surface) {
-		SDL_SetWindowIcon(st->window, icon_surface);
-		SDL_FreeSurface(icon_surface);
-		stbi_image_free(bmp);
-	}
-
-	st->gl_context = SDL_GL_CreateContext(st->window);
-	if (!st->gl_context) {
-		errexit("SDL_GL_CreateContext failed: %s\n", SDL_GetError());
-	}
-
-    if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
-        fprintf(stderr, "Failed to initialize GLAD");
-        goto exit;
-    }
-
-	// enable vsync
-	SDL_GL_SetSwapInterval(1);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	if (st->debug) {
-		int msaa_buffers = 0, msaa_samples = 0, doublebuffer = 0;
-		SDL_GL_GetAttribute(SDL_GL_MULTISAMPLEBUFFERS, &msaa_buffers);
-		SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &msaa_samples);
-		SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &doublebuffer);
-		printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));
-		printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
-		printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
-		printf("MSAA buffers: %d, samples: %d, doublebuffer: %d, swap interval: %d\n",
-			msaa_buffers, msaa_samples, doublebuffer, SDL_GL_GetSwapInterval());
-		SDL_DisplayMode mode;
-		if (SDL_GetCurrentDisplayMode(0, &mode) == 0) {
-			printf("Display: %dx%d @ %d Hz\n", mode.w, mode.h, mode.refresh_rate);
-		}
-	}
+	// if (st->debug) {
+	// 	int msaa_buffers = 0, msaa_samples = 0, doublebuffer = 0;
+	// 	SDL_GL_GetAttribute(SDL_GL_MULTISAMPLEBUFFERS, &msaa_buffers);
+	// 	SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &msaa_samples);
+	// 	SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &doublebuffer);
+	// 	printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));
+	// 	printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
+	// 	printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
+	// 	printf("MSAA buffers: %d, samples: %d, doublebuffer: %d, swap interval: %d\n",
+	// 		msaa_buffers, msaa_samples, doublebuffer, SDL_GL_GetSwapInterval());
+	// 	SDL_DisplayMode mode;
+	// 	if (SDL_GetCurrentDisplayMode(0, &mode) == 0) {
+	// 		printf("Display: %dx%d @ %d Hz\n", mode.w, mode.h, mode.refresh_rate);
+	// 	}
+	// }
 
     // The charset for our small font includes the default ASCII characters, and anything in the
     // outfile name which will be displayed at the top of the window.
@@ -1748,7 +1614,7 @@ int main(int argc, char *argv[])
 		u64 codepoints_len;
 		// TODO: Windows uses UTF-16, not UTF-8, and may need special calls to retrieve unicode cli
 		// args.
-		u32 *codepoints = decode_string(spath, &codepoints_len);
+		u32 *codepoints = decode_utf8(&app_arena, spath, &codepoints_len);
 		if (codepoints) {
 		    for (i32 i=0; i<codepoints_len; i++) {
 		    	u32 c = codepoints[i];
@@ -1778,92 +1644,26 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	int drawable_w, drawable_h;
-	SDL_GL_GetDrawableSize(st->window, &drawable_w, &drawable_h);
-	int window_w, window_h;
-	SDL_GetWindowSize(st->window, &window_w, &window_h);
-	st->dpi = (float)drawable_w / window_w;
-	st->screenWidth = drawable_w;
-	st->screenHeight = drawable_h;
+	init_for_dpi(st, window->scale);
 
-	float dpi = st->dpi;
-	init_for_dpi(st, st->dpi, 1.0f, small_charset, small_charset_n);
-
-    glEnable(GL_MULTISAMPLE);
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    SDL_AddEventWatch(on_resize_watcher, st);
-
-	bool running = true;
-	unsigned long long ticks_start = SDL_GetTicks64();
+	unsigned long long ticks_start = SDL_GetTicks();
 	unsigned long long frames = 0;
-	while (running)
+	while (!window->input->quit)
 	{
 		st->key_pressed = 0;
 		st->mouse_was_down = st->mouse_down;
 
-		SDL_Event event;
-		while (SDL_PollEvent(&event)) {
-			switch (event.type) {
-			case SDL_QUIT:
-				running = false;
-				break;
-			case SDL_KEYDOWN:
-				if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
-					// Don't quit on escape, just pass it through
-				}
-				st->key_pressed = event.key.keysym.scancode;
-				break;
-			case SDL_MOUSEMOTION:
-				st->mouse_x = event.motion.x * dpi;
-				st->mouse_y = event.motion.y * dpi;
-				break;
-			case SDL_MOUSEBUTTONDOWN:
-				if (event.button.button == SDL_BUTTON_LEFT) {
-					st->mouse_down = true;
-				}
-				break;
-			case SDL_MOUSEBUTTONUP:
-				if (event.button.button == SDL_BUTTON_LEFT) {
-					st->mouse_down = false;
-				}
-				break;
-			case SDL_WINDOWEVENT:
-				if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-					st->screenWidth = event.window.data1;
-					st->screenHeight = event.window.data2;
-				}
-				break;
-			}
+		if (window->input->window_rescaled) {
+			init_for_dpi(st, window->scale);
 		}
 
-		// Check for DPI changes
-		SDL_GL_GetDrawableSize(st->window, &drawable_w, &drawable_h);
-		SDL_GetWindowSize(st->window, &window_w, &window_h);
-		float new_dpi = (float)drawable_w / window_w;
-		if (new_dpi != st->dpi) {
-			init_for_dpi(st, new_dpi, st->dpi, small_charset, small_charset_n);
-		}
-		st->screenWidth = drawable_w;
-		st->screenHeight = drawable_h;
+		draw_ui_and_respond_input(st, window->input);
 
-		// Setup viewport and projection
-		glViewport(0, 0, drawable_w, drawable_h);
-
-		reset_scene(st->hsv_grad_scene, drawable_w, drawable_h);
-		reset_scene(st->main_scene, drawable_w, drawable_h);
-
-		draw_ui_and_respond_input(st);
-
-		end_frame();
-
-		SDL_GL_SwapWindow(st->window);
+		commit_changes(window);
 
 		if (st->debug) {
 			frames++;
-			unsigned long long ticks_now = SDL_GetTicks64();
+			unsigned long long ticks_now = SDL_GetTicks();
 			const i32 print_frame_interval_secs = 2;
 			if (ticks_now >= ticks_start + print_frame_interval_secs*1000) {
 				printf("FPS: %.1f\n", frames / (float)print_frame_interval_secs);
@@ -1871,18 +1671,8 @@ int main(int argc, char *argv[])
 				frames = 0;
 			}
 		}
+		update_input_state(window);
     }
 
-    exit:
-	SDL_GL_DeleteContext(st->gl_context);
-	SDL_DestroyWindow(st->window);
-	SDL_Quit();
-	if (st->outfile.path)
-		free(st->outfile.path);
-	if (st->outfile.shortened_path_utf32)
-		free(st->outfile.shortened_path_utf32);
-	destroy_scene(st->main_scene);
-	destroy_scene(st->hsv_grad_scene);
-	free(st);
 	return 0;
 }
