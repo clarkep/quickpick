@@ -1,5 +1,9 @@
-// #define _GNU_SOURCE
+// sched_setaffinity/CPU_ZERO/CPU_SET are glibc extensions.
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <dlfcn.h>
+#include <sched.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -101,7 +105,7 @@ double au_os_time_s() {
 	return (double)t.tv_sec + t.tv_usec / 1e6;
 }
 
-double au_os_time_native() {
+u64 au_os_time_native() {
 	// xx should nanos be considered the native unit? micros are the posix
 	// standard.
 	struct timeval t;
@@ -143,6 +147,7 @@ double au_cpu_time_to_seconds() {
 		au_calibrate_by_sleeping(15);
 	}
 	return cpu_time_to_nanoseconds * 1E-9;
+#endif
 }
 
 void au_calibrate_by_sleeping(i32 ms) {

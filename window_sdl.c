@@ -428,7 +428,7 @@ bool au_window_set_cursor(Window *window, i32 cursor)
             SDL_SetCursor(g_cursor_handles[cursor]);
             return true;
         } else {
-            HANDLE result;
+            SDL_Cursor *result;
             switch (cursor) {
             case AU_CURSOR_NORMAL:
                 result = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_DEFAULT);

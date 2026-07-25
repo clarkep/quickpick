@@ -35,12 +35,12 @@ void afree(Arena *arena, const void *ptr);
 #include <stdlib.h>
 
 #ifdef _WIN32
-#pragma intrinsic(_BitScanForward64)
-#pragma intrinsic(_BitScanReverse64)
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
 #include <windows.h>
 #else
+#include <errno.h>
+#include <sys/mman.h>
 #endif
 
 #define MAX_RETRIES 3
@@ -306,7 +306,7 @@ static bool au_commit_memory(void *loc, u64 size)
 		return true;
 	}
 #else
-	i32 retc = mprotect(loc, size, PROT_READ | PROT_WRITE)
+	i32 retc = mprotect(loc, size, PROT_READ | PROT_WRITE);
 	if (retc < 0) {
 		printf("au_commit_memory: mprotect failed with errno: %d\n", errno);
 		return false;
@@ -341,6 +341,7 @@ static void *au_reserve_memory(void *loc, u64 size)
 	if (result == MAP_FAILED)
 		printf("au_reserve_memory: mmap failed with errno: %d\n", errno);
 	result = (result == (u8 *) MAP_FAILED) ? NULL : result;
+	return result;
 #endif
 }
 
