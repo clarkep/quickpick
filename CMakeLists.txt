@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16...3.25)
 # Silence warning about setting timestamps when downloading dependencies
 # cmake_policy(SET CMP0135 NEW)
 
-project(quickpick)
+project(quickpick C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -19,6 +19,11 @@ set(QUICKPICK_DEPS_SOURCE ${_quickpick_deps_default} CACHE STRING
     "How to provide SDL3 and FreeType: system (installed), fetch (FetchContent), or vendored(Windows only: libs/")
 set_property(CACHE QUICKPICK_DEPS_SOURCE PROPERTY STRINGS system fetch vendored)
 option(QUICKPICK_DEPS_SHARED "Build SDL2 and freetype as shared libraries." ON)
+
+set(QUICKPICK_FETCH_SDL_TAG release-3.4.12 CACHE STRING
+    "SDL git tag used when QUICKPICK_DEPS_SOURCE=fetch")
+set(QUICKPICK_FETCH_FREETYPE_TAG VER-2-14-3 CACHE STRING
+    "FreeType git tag used when QUICKPICK_DEPS_SOURCE=fetch")
 
 if (UNIX)
     add_executable(quickpick quickpick.c autil.c math.c string.c containers.c window_sdl.c window_common.c draw_opengl.c draw_common.c platform_unix.c glad.c tlsf.c)
@@ -60,11 +65,11 @@ elseif(QUICKPICK_DEPS_SOURCE STREQUAL fetch)
     set(SKIP_INSTALL_ALL ON)
     FetchContent_Declare(SDL3
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG ${AUTIL_FETCH_SDL_TAG}
+        GIT_TAG ${QUICKPICK_FETCH_SDL_TAG}
         GIT_SHALLOW TRUE)
     FetchContent_Declare(freetype
         GIT_REPOSITORY https://github.com/freetype/freetype.git
-        GIT_TAG ${AUTIL_FETCH_FREETYPE_TAG}
+        GIT_TAG ${QUICKPICK_FETCH_FREETYPE_TAG}
         GIT_SHALLOW TRUE)
     FetchContent_MakeAvailable(SDL3 freetype)
     set(_sdl_lib SDL3::SDL3-static)
@@ -78,7 +83,9 @@ endif()
 
 target_link_libraries(quickpick PUBLIC ${_sdl_lib} PRIVATE ${_freetype_lib})
 target_include_directories(quickpick PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(quickpick PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/extra)
+if (QUICKPICK_DEPS_SOURCE STREQUAL vendored)
+    target_include_directories(quickpick PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/extra)
+endif()
 
 if(UNIX AND NOT APPLE)  # or: if(NOT WIN32)
   target_link_libraries(${PROJECT_NAME} PRIVATE m)
