@@ -1,7 +1,3 @@
-/*
-Last updated 2026-03-15
-*/
-
 #include <SDL3/SDL.h>
 #include <string.h>
 
@@ -17,7 +13,6 @@ Last updated 2026-03-15
 #define VC_EXTRALEAN
 #include <windows.h>
 #ifdef _MSC_VER
-#include <shellscalingapi.h> // GetDpiForMonitor (Shcore.lib)
 // These libraries are required by SDL when statically linking; listing them here prevents the user from
 // having to list them on the cl command line.
 #pragma comment(lib, "user32.lib")
@@ -32,7 +27,6 @@ Last updated 2026-03-15
 #pragma comment(lib, "setupapi.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "dinput8.lib")
-#pragma comment(lib, "Shcore.lib")
 // #pragma comment(lib, "dxguid.lib")
 // #pragma comment(lib, "ws2_32.lib")
 #endif
@@ -118,8 +112,8 @@ Window *window_create(Arena *arena, u32 w, u32 h, char *title, bool double_buffe
 	win->w.sc.window = (Window *) win;
 	win->w.input = aalloc(arena, sizeof(Input_State));
 	win->w.input->text_entered = (Char_Dynarray *) dynarray_create(arena, sizeof(char));
-	win->w.stride = w; // XXX
-	win->w.rows = h; // XXX
+	win->w.stride = w;
+	win->w.rows = h;
 	win->w.renderer_data = NULL;
 	win->w.renderer_callback = NULL;
 	win->w.pixels = NULL;
@@ -129,26 +123,33 @@ Window *window_create(Arena *arena, u32 w, u32 h, char *title, bool double_buffe
 	if (!g_keycodes_initialized)
 		init_keycodes();
 
-	// Todo: support this on non-msvc compilers.
-#ifdef _MSC_VER
-    // SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "1");
-    if (!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
-    	OutputDebugString("Warning: failed to set DPI aware.\n");
-    HMONITOR mon = MonitorFromPoint((POINT){0,0}, MONITOR_DEFAULTTOPRIMARY);
-    UINT xdpi=96, ydpi=96;
-    if (!(GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &xdpi, &ydpi) == S_OK)) {
-    	xdpi = 96;
-    }
-    float start_scale = xdpi / 96.0f;
-    w = roundf(w * start_scale);
-    h = roundf(h * start_scale);
+#ifdef __linux__
+	// On wayland, default to XWayland over native wayland. When native wayland is selected and libdecor
+	// is active, my tests show cursor capture is broken (A pointer up event is sent when leaving
+	// the window).
+	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "x11,wayland");
+	if (!SDL_Init(SDL_INIT_VIDEO)) {
+		// Neither worked; let SDL try its full driver list.
+		SDL_ResetHint(SDL_HINT_VIDEO_DRIVER);
+		SDL_Init(SDL_INIT_VIDEO);
+	}
+#else
+	SDL_Init(SDL_INIT_VIDEO);
 #endif
+
+	// Some drivers apparently need window sizes passed to SDL_CreateWindow to be in pixels, not logical
+	// units, so pre-scale on those platforms.
+	const char *video_driver = SDL_GetCurrentVideoDriver();
+	if (video_driver && (strcmp(video_driver, "x11") == 0 || strcmp(video_driver, "windows") == 0)) {
+		float start_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+		if (start_scale > 0.0f) {
+			w = SDL_roundf(w * start_scale);
+			h = SDL_roundf(h * start_scale);
+		}
+	}
 
 	win->w.sc.w = w;
 	win->w.sc.h = h;
-
-    // SDL_SetHint(SDL_HINT_VIDEO_WAYLAND_SCALE_TO_DISPLAY, "1");
-	SDL_Init(SDL_INIT_VIDEO);
 
 	win->w.animation_rate = 1.0;
 	win->w.input->start_time = au_os_time();
