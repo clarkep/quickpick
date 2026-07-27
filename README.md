@@ -22,7 +22,7 @@ If using an output file, the selected color will be automatically written to the
 
 Building
 --------
-This project depends on [SDL2](https://www.libsdl.org/) and [freetype](https://freetype.org).
+This project depends on [SDL3](https://www.libsdl.org/) and [freetype](https://freetype.org).
 
 ### CMake
 
@@ -34,11 +34,13 @@ followed by
 
      $ cmake --build build
 
-This will fetch and build SDL2 and freetype by default. To use previously installed versions of these libraries, configure with:
+On Linux and macOS, this will fetch and build SDL3 and freetype by default. On windows, it will use
+vendored versions (included in this repository) by default. To use previously installed versions of
+the libraries, configure with:
 
-    $ cmake -B build -DSYSTEM_LIBS=ON
+    $ cmake -B build -DQUICKPICK_DEPS_SOURCE=system
 
-On Windows, the executable is placed at `build\Debug\quickpick.exe` by default, and on macOS or Linux it is placed at `build\quickpick`.
+On Windows, the executable is placed at `build\Debug\quickpick.exe` by default, and on macOS or Linux it is placed at `build/quickpick`.
 
 ### Build script
 
