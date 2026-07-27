@@ -1,5 +1,5 @@
 # MSVC_DEBUG_INFORMATION_FORMAT Embedded will work with cmake >= 3.25. Versions below 3.25 will ignore
-# it and use separate pdbs.
+# it and use separate pdbs on Windows/MSVC. (CMP0141)
 cmake_minimum_required(VERSION 3.16...3.25)
 
 # include(FetchContent)
@@ -16,7 +16,7 @@ else()
     set(_quickpick_deps_default system)
 endif()
 set(QUICKPICK_DEPS_SOURCE ${_quickpick_deps_default} CACHE STRING
-    "How to provide SDL3 and FreeType: system (installed), fetch (FetchContent), or vendored(Windows only: libs/")
+    "How to provide SDL3 and FreeType: system (installed), fetch (FetchContent), or vendored (Windows only: libs/")
 set_property(CACHE QUICKPICK_DEPS_SOURCE PROPERTY STRINGS system fetch vendored)
 option(QUICKPICK_DEPS_SHARED "Build SDL2 and freetype as shared libraries." ON)
 
@@ -41,8 +41,8 @@ if (QUICKPICK_DEPS_SOURCE STREQUAL vendored)
         IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/libs/SDL3-static.lib
         IMPORTED_LOCATION_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/libs/SDL3-staticd.lib
         INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/include/extra)
-    # System libs SDL3-static.lib needs at final link (same set as the
-    # pragma comment(lib) list in window_sdl.c).
+    # System libs SDL3-static.lib needs (same as the pragma comment(lib) list in window_sdl.c, but
+    # works outside msvc).
     set_property(TARGET quickpick_vendored_sdl3 PROPERTY INTERFACE_LINK_LIBRARIES
         user32 gdi32 winmm imm32 ole32 oleaut32 version uuid advapi32
         setupapi shell32 dinput8 shcore)
@@ -60,7 +60,7 @@ elseif(QUICKPICK_DEPS_SOURCE STREQUAL fetch)
     set(SDL_SHARED OFF)
     set(SDL_STATIC ON)
     set(SDL_TEST_LIBRARY OFF)
-    # Keep the FreeType build dependency-free.
+    # Keep the FreeType build dependency free.
     set(FT_DISABLE_ZLIB ON)
     set(FT_DISABLE_BZIP2 ON)
     set(FT_DISABLE_PNG ON)
