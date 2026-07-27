@@ -28,11 +28,11 @@ set(QUICKPICK_FETCH_FREETYPE_TAG VER-2-14-3 CACHE STRING
 set(_util_sources
     src/util/autil.c src/util/math.c src/util/string.c src/util/containers.c
     src/util/window_sdl.c src/util/window_common.c src/util/draw_opengl.c
-    src/util/draw_common.c src/util/tlsf.c)
+    src/util/draw_common.c src/util/tlsf.c src/util/glad.c)
 if (UNIX)
-    add_executable(quickpick src/quickpick.c ${_util_sources} src/util/platform_unix.c glad.c)
+    add_executable(quickpick src/quickpick.c ${_util_sources} src/util/platform_unix.c)
 else()
-    add_executable(quickpick src/quickpick.c ${_util_sources} src/util/platform_win.c glad.c)
+    add_executable(quickpick src/quickpick.c ${_util_sources} src/util/platform_win.c)
 endif()
 
 if (QUICKPICK_DEPS_SOURCE STREQUAL vendored)
