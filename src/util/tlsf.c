@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../au_core.h"
+#include "au_core.h"
 #include "tlsf.h"
 
 #if defined(__cplusplus)

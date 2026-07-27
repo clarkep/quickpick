@@ -25,10 +25,14 @@ set(QUICKPICK_FETCH_SDL_TAG release-3.4.12 CACHE STRING
 set(QUICKPICK_FETCH_FREETYPE_TAG VER-2-14-3 CACHE STRING
     "FreeType git tag used when QUICKPICK_DEPS_SOURCE=fetch")
 
+set(_util_sources
+    src/util/autil.c src/util/math.c src/util/string.c src/util/containers.c
+    src/util/window_sdl.c src/util/window_common.c src/util/draw_opengl.c
+    src/util/draw_common.c src/util/tlsf.c)
 if (UNIX)
-    add_executable(quickpick quickpick.c autil.c math.c string.c containers.c window_sdl.c window_common.c draw_opengl.c draw_common.c platform_unix.c glad.c tlsf.c)
+    add_executable(quickpick src/quickpick.c ${_util_sources} src/util/platform_unix.c glad.c)
 else()
-    add_executable(quickpick quickpick.c autil.c math.c string.c containers.c window_sdl.c window_common.c draw_opengl.c draw_common.c platform_win.c glad.c tlsf.c)
+    add_executable(quickpick src/quickpick.c ${_util_sources} src/util/platform_win.c glad.c)
 endif()
 
 if (QUICKPICK_DEPS_SOURCE STREQUAL vendored)
@@ -82,7 +86,10 @@ else()
 endif()
 
 target_link_libraries(quickpick PUBLIC ${_sdl_lib} PRIVATE ${_freetype_lib})
-target_include_directories(quickpick PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(quickpick PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/util
+    ${CMAKE_CURRENT_SOURCE_DIR}/res)
 if (QUICKPICK_DEPS_SOURCE STREQUAL vendored)
     target_include_directories(quickpick PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/extra)
 endif()
