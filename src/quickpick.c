@@ -62,6 +62,7 @@ typedef struct state {
 	int mode; // rgb(0) or hsv(1)
 	int which_fixed; // red(0), green(1) or blue(2); or hue(0), saturation(1), or value(2)
 	enum cursor_state cursor_state;
+	bool animating;
 	bool square_dragging;
 	bool val_slider_dragging;
 	// The coordinate that that the slider controls, 0-1
@@ -384,13 +385,17 @@ bool read_color_from_outfile_and_maybe_update_offset(struct state *st, Vector4 *
 	}
 }
 
-void value_creep_towards(float *val, float target, float amount)
+// Returns true if *val moved
+bool value_creep_towards(float *val, float target, float amount)
 {
 	if (*val < target) {
 		*val = MIN(*val + amount, target);
 	} else if (*val > target) {
 		*val = MAX(*val - amount, target);
+	} else {
+		return false;
 	}
+	return true;
 }
 
 bool vector4_equal(Vector4 c1, Vector4 c2) {
@@ -808,8 +813,13 @@ bool tab_select(Tab_Select *self, Input_State *input)
 		active_targets[self->sel_i] = 1.0f;
 	}
 	for (int tab_i=0; tab_i<3; tab_i++) {
-		value_creep_towards(&self->hover_v[tab_i], hover_targets[tab_i], self->anim_vdt);
-		value_creep_towards(&self->active_v[tab_i], active_targets[tab_i], self->anim_vdt);
+		bool hover_moved = value_creep_towards(&self->hover_v[tab_i], hover_targets[tab_i],
+			self->anim_vdt);
+		bool active_moved = value_creep_towards(&self->active_v[tab_i], active_targets[tab_i],
+			self->anim_vdt);
+		if (hover_moved || active_moved) {
+			st->animating = true;
+		}
 	}
 
 	return updated;
@@ -911,6 +921,10 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 		self->clicking = false;
 	}
 	if (self->selected) {
+		if (input->text_entered->length > 0 || input->key_pressed[AU_KEY_BACKSPACE]
+			|| input->key_pressed[AU_KEY_ENTER] || input->key_pressed[AU_KEY_ESCAPE]) {
+			st->animating = true;
+		}
 		for (i64 i = 0; i<input->text_entered->length; i++) {
 			i32 key = input->text_entered->d[i];
 			int key_num = -1;
@@ -979,8 +993,11 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 	} else if (hovered) {
 		shade_v_target = 0.5f;
 	}
-	value_creep_towards(&self->shade_v, shade_v_target, self->anim_vdt * .6);
+	if (value_creep_towards(&self->shade_v, shade_v_target, self->anim_vdt * .6)) {
+		st->animating = true;
+	}
 	if (new_value != self->value) {
+		st->animating = true;
 		self->value = new_value;
 		return true;
 	} else {
@@ -1008,13 +1025,24 @@ bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool 
 
 void draw_ui_and_respond_input(struct state *st, Input_State *input)
 {
-	// consume one keypress per frame
 	float anim_vdt = 0.2f;
+	st->animating = false;
 
 	Vector2 pos = { input->pointer_x, input->pointer_y };
 	if (input->mouse_released[AU_MOUSE_BUTTON_LEFT]) {
 		st->square_dragging = false;
 		st->val_slider_dragging = false;
+	}
+
+	if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
+		/*
+		** Most left mouse presses will result in some visible change to the screen, and we can't always
+		** reflect that change this frame. So, guarantee another frame is drawn after this one by setting
+		** animating = true. This is the lazy way: compared to setting animating = true in each branch
+		** where we definitely need it, we sometimes draw one extra frame we didn't need to. Compared to
+		** handling all input before all output, we sometimes cause one extra frame of latency.
+		*/
+		st->animating = true;
 	}
 
 	struct color_info ci = current_color(st);
@@ -1127,36 +1155,36 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 	add_line_ext(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*scale, st->text_color);
 	add_line_ext(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*scale, st->text_color);
 	add_line_ext(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*scale, st->text_color);
-	if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT] || st->square_dragging) {
-		if (!st->square_dragging) {
-			Rectangle rec = {grad_square_x, grad_square_y, 512*scale, 512*scale};
-			Vector2 c = { grad_square_x + 512*scale/2, grad_square_y + 512*scale/2 };
-			if ((grad_square && CheckCollisionPointRec(pos, rec))
-				|| (!grad_square && CheckCollisionPointCircle(pos, c, 512*scale/2))) {
-				st->square_dragging = true;
-			}
+	if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
+		Rectangle rec = {grad_square_x, grad_square_y, 512*scale, 512*scale};
+		Vector2 c = { grad_square_x + 512*scale/2, grad_square_y + 512*scale/2 };
+		if ((grad_square && CheckCollisionPointRec(pos, rec))
+			|| (!grad_square && CheckCollisionPointCircle(pos, c, 512*scale/2))) {
+			st->square_dragging = true;
 		}
-		if (st->square_dragging) {
-			int y_adj = 3*scale;
-			int x_adj = 2*scale;
-			if (grad_square) {
-				st->x_value = MIN(MAX((pos.x - x_adj - grad_square_x) / (512*scale), 0.0f), 1.0f);
-				// xx off by one?
-				st->y_value = MIN(MAX((grad_square_y + 512*scale - pos.y + y_adj) / (512*scale), 0.0f),
-					1.0f);
-			} else {
-				int x_res = pos.x -x_adj - (grad_square_x + 512*scale/2);
-				int y_res = pos.y - y_adj - (grad_square_y + 512*scale/2);
-				y_res = -y_res;
-				// theta
-				st->x_value = atan2(y_res, x_res) / (2*F_PI);
-				st->x_value = st->x_value < 0 ? 1.0 + st->x_value : st->x_value;
-				// r
-				st->y_value = MIN(MAX(sqrtf(x_res*x_res+y_res*y_res)/(512*scale/2), 0.0), 1.0);
-			}
-			// xx check if we actually changed the color?
-			st->from_alternate_value = false;
+	}
+	if (st->square_dragging) {
+		if (input->pointer_dy || input->pointer_dx)
+			st->animating = true;
+		int y_adj = 3*scale;
+		int x_adj = 2*scale;
+		if (grad_square) {
+			st->x_value = MIN(MAX((pos.x - x_adj - grad_square_x) / (512*scale), 0.0f), 1.0f);
+			// xx off by one?
+			st->y_value = MIN(MAX((grad_square_y + 512*scale - pos.y + y_adj) / (512*scale), 0.0f),
+				1.0f);
+		} else {
+			int x_res = pos.x -x_adj - (grad_square_x + 512*scale/2);
+			int y_res = pos.y - y_adj - (grad_square_y + 512*scale/2);
+			y_res = -y_res;
+			// theta
+			st->x_value = atan2(y_res, x_res) / (2*F_PI);
+			st->x_value = st->x_value < 0 ? 1.0 + st->x_value : st->x_value;
+			// r
+			st->y_value = MIN(MAX(sqrtf(x_res*x_res+y_res*y_res)/(512*scale/2), 0.0), 1.0);
 		}
+		// xx check if we actually changed the color?
+		st->from_alternate_value = false;
 	}
 
 	// fixed color buttons
@@ -1254,10 +1282,10 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 			main_button_hover_v = 0;
 		}
 		if (!input->mouse_down[AU_MOUSE_BUTTON_LEFT]) {
-			main_button_hover_v = MIN(main_button_hover_v + anim_vdt, 1.0);
+			st->animating = value_creep_towards(&main_button_hover_v, 1.0f, anim_vdt);
 		}
 	} else {
-		main_button_hover_v = MAX(main_button_hover_v - anim_vdt, 0.0);
+		st->animating = value_creep_towards(&main_button_hover_v, 0.0f, anim_vdt);
 	}
 
 	// fixed value slider
@@ -1317,6 +1345,9 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 				st->fixed_value = MIN(MAX((float) val_slider_offset / val_slider_w, 0), 1.0);
 				// xx check if we actually changed the color?
 				st->from_alternate_value = false;
+				if (input->pointer_dx) {
+					st->animating = true;
+				}
 			}
 		}
 	}
@@ -1671,7 +1702,13 @@ int main(int argc, char *argv[])
 				frames = 0;
 			}
 		}
-		update_input_state(window);
+		if (st->animating) {
+			// Go to the next frame whether there is input or not.
+			update_input_state(window);
+		} else {
+			// Wait for an input event before going to the next frame.
+			wait_and_update_input_state(window);
+		}
     }
 
 	return 0;
