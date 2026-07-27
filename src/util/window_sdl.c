@@ -384,6 +384,7 @@ void update_input_state(Window *window)
 {
 	AU_SDL_Window *win = (AU_SDL_Window *) window;
 	Input_State *input = win->w.input;
+	u64 last_wall_time = input->wall_time;
 	input_begin_frame(input);
 	if (window->input_mode == AU_INPUT_MODE_PLAYBACK) {
 		input_state_read_and_deserialize(window);
@@ -393,9 +394,8 @@ void update_input_state(Window *window)
 			input_handle_event(win, input, &e);
 		}
 
-		u64 old_wall_time = input->wall_time;
 		input->wall_time = au_os_time() - input->start_time;
-		input->wall_dt = input->wall_time - old_wall_time;
+		input->wall_dt = input->wall_time - last_wall_time;
 		input->anim_dt = input->wall_dt * win->w.animation_rate;
 		input->anim_time += input->anim_dt;
 		input->wall_dt_s = input->wall_dt / (double) AU_TICK_FREQ;
@@ -406,6 +406,40 @@ void update_input_state(Window *window)
 	}
 }
 
+void wait_and_update_input_state(Window *window)
+{
+	AU_SDL_Window *win = (AU_SDL_Window *) window;
+	Input_State *input = win->w.input;
+	u64 last_wall_time = input->wall_time;
+	input_begin_frame(input);
+	if (window->input_mode == AU_INPUT_MODE_PLAYBACK) {
+		input_state_read_and_deserialize(window);
+	} else {
+		bool got_pending_events = false;
+		SDL_Event e;
+		while (SDL_PollEvent(&e)) {
+			got_pending_events = true;
+			input_handle_event(win, input, &e);
+		}
+		if (!got_pending_events) {
+			if (SDL_WaitEvent(&e)) {
+				input_handle_event(win, input, &e);
+				while (SDL_PollEvent(&e))
+					input_handle_event(win, input, &e);
+			}
+		}
+
+		input->wall_time = au_os_time() - input->start_time;
+		input->wall_dt = input->wall_time - last_wall_time;
+		input->anim_dt = input->wall_dt * win->w.animation_rate;
+		input->anim_time += input->anim_dt;
+		input->wall_dt_s = input->wall_dt / (double) AU_TICK_FREQ;
+		input->anim_dt_s = input->anim_dt / (double) AU_TICK_FREQ;
+		if (window->input_mode == AU_INPUT_MODE_RECORDING) {
+			input_state_serialize_and_write(window);
+		}
+	}
+}
 
 void run_window(Window *window, float milliseconds)
 {

@@ -197,8 +197,12 @@ Window *window_create(Arena *arena, u32 width, u32 height, char *title, bool dou
 // Reset input state, then listen for and dispatch events. If milliseconds < 0, run indefinitely
 void window_run(Window *window, float milliseconds);
 
-// Reset input state and flush event queue, updating input state
+// Reset input state and flush event queue, updating the input state to reflect all pending events.
 void update_input_state(Window *window);
+
+// If there are events pending, update the input state to reflect them; otherwise, wait for the next
+// event and update input state to reflect just that event.
+void wait_and_update_input_state(Window *window);
 
 // In double buffered mode, swap the front and back buffers, then commit the new front buffer
 // In single buffered mode, commit the buffer
