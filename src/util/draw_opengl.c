@@ -547,12 +547,6 @@ u32 context_get_vertex_size(Render_Context *context)
 
 /********************************** Font and image loading ****************************************/
 
-static u64 round_up_to_pow2(u64 x)
-{
-	if (x <= 1) return 1;
-	return 1ULL << (au_fls(x - 1) + 1);
-}
-
 static int ensure_freetype_initialized(void)
 {
 	if (g_ft_library) return 0;
@@ -854,8 +848,8 @@ static i32 load_bitmap_internal(Render_Context *context, const void *data, i32 w
 	i32 i = tex_pen->texture_i;
 	if (result.x + img_w > texture->w || result.y + img_h > texture->h) {
 		// Resize by powers of two.
-		u64 new_w = round_up_to_pow2(MAX(result.x + img_w, texture->w));
-		u64 new_h = round_up_to_pow2(MAX(result.y + img_h, texture->h));
+		u64 new_w = au_round_up_to_pow2(MAX(result.x + img_w, texture->w));
+		u64 new_h = au_round_up_to_pow2(MAX(result.y + img_h, texture->h));
 		new_w = MIN(new_w, max_texture_size);
 		new_h = MIN(new_h, max_texture_size);
 		if (!resize_opengl_texture(context, i, new_w, new_h, channels)) {
