@@ -700,7 +700,7 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 		c3);
 	add_text(st->main_scene, st->text_font_medium, FONT_MEDIUM_PX, "H", harr_end.x+18*dpi, harr_end.y-2*dpi,
 		st->text_color);
-	add_circle_arc(st->main_scene, x, y, r+harr_d+harr_w/2, 2*F_PI*harr_ang1/360.0f,
+	add_circle_arc_ex(st->main_scene, x, y, r+harr_d+harr_w/2, 2*F_PI*harr_ang1/360.0f,
 		2*F_PI*harr_ang2/360.0f, 30, 2.0f*dpi, st->text_color);
 }
 

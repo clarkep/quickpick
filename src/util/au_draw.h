@@ -194,6 +194,9 @@ Scene *scene_create_child_with_context(Scene *parent, Arena *arena, float x, flo
 bool scene_init_child_with_context(Scene *child_out, Scene *parent, float x, float y, float w,
 	float h, i32 context);
 
+void add_circle_arc(Scene *scene, float x, float y, float r, float angle1, float angle2,
+    Vector4 color);
+
 void add_rounded_rectangle(Scene *scene, float x, float y, float w, float h, float radius,
 	Vector4 color);
 
@@ -205,9 +208,6 @@ void add_rounded_quad(Scene *scene, Vector2 *corners, bool *rounded, float radiu
 void add_rounded_quad_outline(Scene *scene, Vector2 *corners, bool *rounded, float radius,
 	Vector4 color);
 
-void add_circle_arc (Scene *scene, float x, float y, float r, float angle1, float angle2,
-    i32 segments, float thickness, Vector4 color);
-
 void add_line_ex(Scene *scene, float x1, float y1, float x2, float y2, float thickness,
 	Vector4 color);
 
@@ -218,6 +218,9 @@ void add_circle_ex(Scene *scene, float x, float y, float r, float segments, Vect
 
 void add_circle_outline_ex(Scene *scene, float x, float y, float r, float segments, float thickness,
 	Vector4 color);
+
+void add_circle_arc_ex(Scene *scene, float x, float y, float r, float angle1, float angle2,
+    i32 segments, float thickness, Vector4 color);
 
 void add_rounded_rectangle_ex(Scene *scene, float x, float y, float w, float h, float radius,
 	i32 segments_per_corner, Vector4 color);

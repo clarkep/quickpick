@@ -1591,7 +1591,7 @@ void add_circle_outline(Scene *scene, float x, float y, float r, Vector4 color)
 	add_circle_outline_ex(scene, x, y, r, MAX(20, r/2), 1, color);
 }
 
-void add_circle_arc (Scene *scene, float x, float y, float r, float angle1, float angle2,
+void add_circle_arc_ex(Scene *scene, float x, float y, float r, float angle1, float angle2,
     i32 segments, float thickness, Vector4 color)
 {
 	Render_Context *context = scene_get_and_activate_context(scene);
@@ -1605,6 +1605,12 @@ void add_circle_arc (Scene *scene, float x, float y, float r, float angle1, floa
 	outlineize(data, context->vertex_size, n, thickness, color, false);
 	assertf(n*6 <= max_verts, NULL);
 	context->vertices->length += (n-1)*6*context->vertex_size;
+}
+
+void add_circle_arc(Scene *scene, float x, float y, float r, float angle1, float angle2,
+    Vector4 color)
+{
+	add_circle_arc_ex(scene, x, y, r, angle1, angle2, MAX(20, r / 2), 1.0f, color);
 }
 
 void add_rounded_quad_ex(Scene *scene, Vector2 *corners, bool *rounded, float radius,
