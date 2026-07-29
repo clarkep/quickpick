@@ -661,7 +661,7 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 		int length = 5*dpi;
 		Vector2 start = { x + r * dx, y + r * dy };
 		Vector2 end = { start.x + length * dx, start.y + length * dy };
-		add_line_ext(st->main_scene, start.x, start.y, end.x, end.y, 2.0*dpi, st->text_color);
+		add_line_ex(st->main_scene, start.x, start.y, end.x, end.y, 2.0*dpi, st->text_color);
 	}
 	// s arrow
 	int arrow_len = 60*dpi;
@@ -672,11 +672,11 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 	float ah_ang = (180-28)*2*F_PI/360.0f;
 	float ah_w = 2.0*dpi;
 	Vector2 arrow_end = (Vector2) { x+r+arrow_len, y};
-	add_line_ext(st->main_scene, x+r+12*dpi, y, arrow_end.x, arrow_end.y, arrow_w, st->text_color);
+	add_line_ex(st->main_scene, x+r+12*dpi, y, arrow_end.x, arrow_end.y, arrow_w, st->text_color);
 	Vector2 ah_left = { arrow_end.x + ah_len*cosf(ah_ang), arrow_end.y + ah_len*sinf(ah_ang)};
 	Vector2 ah_right = { arrow_end.x + ah_len*cosf(-ah_ang), arrow_end.y + ah_len*sinf(-ah_ang)};
-	add_line_ext(st->main_scene, arrow_end.x, arrow_end.y, ah_left.x, ah_left.y, ah_w, st->text_color);
-	add_line_ext(st->main_scene, arrow_end.x, arrow_end.y, ah_right.x, ah_right.y, ah_w, st->text_color);
+	add_line_ex(st->main_scene, arrow_end.x, arrow_end.y, ah_left.x, ah_left.y, ah_w, st->text_color);
+	add_line_ex(st->main_scene, arrow_end.x, arrow_end.y, ah_right.x, ah_right.y, ah_w, st->text_color);
 	add_text(st->main_scene, st->font, FONT_MEDIUM_PX, "S", arrow_end.x-16.0*dpi, arrow_end.y-20.0*dpi,
 		st->text_color);
 	// h arrow
@@ -695,8 +695,8 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 	Vector2 h_ah_right = { harr_end.x+ah_len*cosf(harr_dir_ang-ah_ang+adj),
 		harr_end.y-ah_len*sinf(harr_dir_ang-ah_ang+adj)};
 	Vector4 c3 = st->text_color;
-	add_line_ext(st->main_scene, harr_end.x, harr_end.y, h_ah_left.x, h_ah_left.y, ah_w, c3);
-	add_line_ext(st->main_scene, harr_end.x, harr_end.y, h_ah_right.x, h_ah_right.y, ah_w,
+	add_line_ex(st->main_scene, harr_end.x, harr_end.y, h_ah_left.x, h_ah_left.y, ah_w, c3);
+	add_line_ex(st->main_scene, harr_end.x, harr_end.y, h_ah_right.x, h_ah_right.y, ah_w,
 		c3);
 	add_text(st->main_scene, st->text_font_medium, FONT_MEDIUM_PX, "H", harr_end.x+18*dpi, harr_end.y-2*dpi,
 		st->text_color);
@@ -771,8 +771,8 @@ bool tab_select(Tab_Select *self, Input_State *input)
 	float text_y = y + h/2.0f + FONT_SMALL_PX*CENTER_EM;
 	Vector2 left_corners[4] = { { x, y }, { x, y+h }, { x+tw, y+h }, { x+tw, y }};
 	bool left_rounded[4] = { self->top, !self->top, false, false };
-	add_rounded_quad_ext(st->main_scene, left_corners, left_rounded, rnd, segs, color1);
-	add_rounded_quad_outline_ext(st->main_scene, left_corners, left_rounded, rnd, segs, 1.0f,
+	add_rounded_quad_ex(st->main_scene, left_corners, left_rounded, rnd, segs, color1);
+	add_rounded_quad_outline_ex(st->main_scene, left_corners, left_rounded, rnd, segs, 1.0f,
 		self->border_color);
 	text[0] = self->labels[0];
 	add_text(st->main_scene, st->font, FONT_SMALL_PX, text, x + (tw - st->small_char_width)/2.0,
@@ -784,15 +784,15 @@ bool tab_select(Tab_Select *self, Input_State *input)
 	Vector2 right_corners[4] = { { last_x, y }, { last_x, y+h }, { last_x+last_w, y+h },
 		{ last_x+last_w, y } };
 	bool right_rounded[4] = { false, false, !self->top, self->top };
-	add_rounded_quad_ext(st->main_scene, right_corners, right_rounded, rnd, segs, color3);
-	add_rounded_quad_outline_ext(st->main_scene, right_corners, right_rounded, rnd, segs, 1.0f,
+	add_rounded_quad_ex(st->main_scene, right_corners, right_rounded, rnd, segs, color3);
+	add_rounded_quad_outline_ex(st->main_scene, right_corners, right_rounded, rnd, segs, 1.0f,
 		self->border_color);
 	text[0] = self->labels[2];
 	add_text(st->main_scene, st->font, FONT_SMALL_PX, text,
 		last_x + (last_w - st->small_char_width)/2.0, text_y, text_color3);
 
 	add_rectangle(st->main_scene, x_mid, self->y, tw, self->h, color2);
-	add_rectangle_outline_ext(st->main_scene, x_mid, self->y, tw, self->h, 1*dpi,
+	add_rectangle_outline_ex(st->main_scene, x_mid, self->y, tw, self->h, 1*dpi,
 		self->border_color);
 	text[0] = self->labels[1];
 	add_text(st->main_scene, st->font, FONT_SMALL_PX, text, x_mid + (tw - st->small_char_width)/2.0,
@@ -855,7 +855,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 	bool hovered = false;
 	float rnd = 7.0f;
 	i32 segs = 15;
-	add_rounded_rectangle_ext(st->main_scene, self->x - 10*dpi, self->y, self->w, self->h,
+	add_rounded_rectangle_ex(st->main_scene, self->x - 10*dpi, self->y, self->w, self->h,
 		rnd, segs, hl_color);
 	char text[21];
 	memset(text, 0, 21);
@@ -1106,7 +1106,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		i32 text_x = out_ind_bottom_x +
 			(out_ind_bottom_w - st->outfile.shortened_path_len*(st->small_char_width+1.0*scale))/2.0f;
 		i32 text_y = out_ind_top_y + out_ind_h/2.0f + FONT_SMALL_PX*CENTER_EM;
-		add_rounded_quad_ext(st->main_scene, out_ind_verts, out_ind_rounded, 12*scale, 12,
+		add_rounded_quad_ex(st->main_scene, out_ind_verts, out_ind_rounded, 12*scale, 12,
 			out_ind_bgcolor);
 		add_text_utf32(st->main_scene, st->font, FONT_SMALL_PX, st->outfile.shortened_path_utf32,
 			text_x, text_y, WHITE);
@@ -1148,13 +1148,13 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		ind_x = grad_circle_x + grad_circle_r*st->y_value*cosf(st->x_value * 2*F_PI);
 		ind_y = grad_circle_y - grad_circle_r*st->y_value*sinf(st->x_value * 2*F_PI);
 	}
-	add_circle_outline_ext(st->main_scene, ind_x, ind_y, 6*scale, 20, 1*scale, st->text_color);
+	add_circle_outline_ex(st->main_scene, ind_x, ind_y, 6*scale, 20, 1*scale, st->text_color);
 	int r2 = 4*scale;
 	int r3 = 8*scale;
-	add_line_ext(st->main_scene, ind_x - r3, ind_y, ind_x - r2, ind_y, 1*scale, st->text_color);
-	add_line_ext(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*scale, st->text_color);
-	add_line_ext(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*scale, st->text_color);
-	add_line_ext(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*scale, st->text_color);
+	add_line_ex(st->main_scene, ind_x - r3, ind_y, ind_x - r2, ind_y, 1*scale, st->text_color);
+	add_line_ex(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*scale, st->text_color);
+	add_line_ex(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*scale, st->text_color);
+	add_line_ex(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*scale, st->text_color);
 	if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
 		Rectangle rec = {grad_square_x, grad_square_y, 512*scale, 512*scale};
 		Vector2 c = { grad_square_x + 512*scale/2, grad_square_y + 512*scale/2 };
@@ -1268,7 +1268,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		main_button_hover_v * hov_bright);
 	add_rectangle(st->main_scene, main_button_x, main_button_y, main_button_w, main_button_h,
 		fixed_button_color);
-	add_rectangle_outline_ext(st->main_scene, main_button_x, main_button_y, main_button_w,
+	add_rectangle_outline_ex(st->main_scene, main_button_x, main_button_y, main_button_w,
 		main_button_h, 1*scale, buttons_border_color);
 	i32 main_button_text_x = main_button_x + main_button_w/2.0f-st->large_char_width/2.0f;
 	i32 main_button_text_y = main_button_y + main_button_h/2.0f+FONT_LARGE_PX*CENTER_EM;
@@ -1327,12 +1327,12 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		// Todo: because outline color is the same as fixed_indication_color for hsv modes, the slider
 		// can completely disappear in rare cases.
 		Vector4 outline_color = bright_grey_bg;
-		add_rounded_rectangle_ext(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f, val_slider_w+out_w,
+		add_rounded_rectangle_ex(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f, val_slider_w+out_w,
 			bar_h+out_w, 12.0f*scale, 10, outline_color);
 		Scene *scene = st->mode == 1 ? st->hsv_grad_scene : st->main_scene;
 		add_gradient_rectangle_rounded_ends(scene, val_slider_x, val_slider_y-bar_h/2.0f,
 			val_slider_w, bar_h, 8.0f*scale, 10, corner_cols);
-		add_circle_ext(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
+		add_circle_ex(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
 			30, fixed_indication_color);
 		if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT] || st->val_slider_dragging) {
 			if (!st->val_slider_dragging && CheckCollisionPointRec(pos,

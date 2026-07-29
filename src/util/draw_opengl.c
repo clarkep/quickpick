@@ -1395,7 +1395,7 @@ void context_transform_1(Render_Context *context, float *q)
 	}
 }
 
-void add_line_ext(Scene *scene, float x1, float y1, float x2, float y2, float thickness,
+void add_line_ex(Scene *scene, float x1, float y1, float x2, float y2, float thickness,
 	Vector4 color)
 {
 	Render_Context *context = scene_get_and_activate_context(scene);
@@ -1441,7 +1441,7 @@ void add_line_ext(Scene *scene, float x1, float y1, float x2, float y2, float th
 
 void add_line(Scene *scene, float x1, float y1, float x2, float y2, Vector4 color)
 {
-	add_line_ext(scene, x1, y1, x2, y2, 1, color);
+	add_line_ex(scene, x1, y1, x2, y2, 1, color);
 }
 
 void add_rectangle(Scene *scene, float x, float y, float w, float h, Vector4 color)
@@ -1459,7 +1459,7 @@ void add_rectangle(Scene *scene, float x, float y, float w, float h, Vector4 col
 	context->vertices->length += n*3*context->vertex_size;
 }
 
-void add_rectangle_outline_ext(Scene *scene, float x, float y, float w, float h, float thickness,
+void add_rectangle_outline_ex(Scene *scene, float x, float y, float w, float h, float thickness,
 	Vector4 color)
 {
 	Render_Context *context = scene_get_and_activate_context(scene);
@@ -1477,7 +1477,7 @@ void add_rectangle_outline_ext(Scene *scene, float x, float y, float w, float h,
 
 void add_rectangle_outline(Scene *scene, float x, float y, float w, float h, Vector4 color)
 {
-	add_rectangle_outline_ext(scene, x, y, w, h, 1, color);
+	add_rectangle_outline_ex(scene, x, y, w, h, 1, color);
 }
 
 void add_triangle(Scene *scene, float x1, float y1, float x2, float y2, float x3, float y3, Vector4 color)
@@ -1549,7 +1549,7 @@ void add_triangle_outline(Scene *scene, float x1, float y1, float x2, float y2, 
 	add_triangle_outline_ex(scene, x1, y1, x2, y2, x3, y3, color, 1);
 }
 
-void add_circle_ext(Scene *scene, float x, float y, float r, float segments, Vector4 color)
+void add_circle_ex(Scene *scene, float x, float y, float r, float segments, Vector4 color)
 {
 	Render_Context *context = scene_get_and_activate_context(scene);
 	scene_transform_xy(scene, context, &x, &y);
@@ -1566,10 +1566,10 @@ void add_circle_ext(Scene *scene, float x, float y, float r, float segments, Vec
 void add_circle(Scene *scene, float x, float y, float r, Vector4 color)
 {
 	// XX num segments?
-	add_circle_ext(scene, x, y, r, MAX(20, r/2), color);
+	add_circle_ex(scene, x, y, r, MAX(20, r/2), color);
 }
 
-void add_circle_outline_ext(Scene *scene, float x, float y, float r, float segments, float thickness,
+void add_circle_outline_ex(Scene *scene, float x, float y, float r, float segments, float thickness,
 	Vector4 color)
 {
 	Render_Context *context = scene_get_and_activate_context(scene);
@@ -1588,7 +1588,7 @@ void add_circle_outline_ext(Scene *scene, float x, float y, float r, float segme
 void add_circle_outline(Scene *scene, float x, float y, float r, Vector4 color)
 {
 	// XX num segments?
-	add_circle_outline_ext(scene, x, y, r, MAX(20, r/2), 1, color);
+	add_circle_outline_ex(scene, x, y, r, MAX(20, r/2), 1, color);
 }
 
 void add_circle_arc (Scene *scene, float x, float y, float r, float angle1, float angle2,
@@ -1607,7 +1607,7 @@ void add_circle_arc (Scene *scene, float x, float y, float r, float angle1, floa
 	context->vertices->length += (n-1)*6*context->vertex_size;
 }
 
-void add_rounded_quad_ext(Scene *scene, Vector2 *corners, bool *rounded, float radius,
+void add_rounded_quad_ex(Scene *scene, Vector2 *corners, bool *rounded, float radius,
 	i32 segments_per_corner, Vector4 color)
 {
 	Render_Context *context = scene_get_and_activate_context(scene);
@@ -1632,7 +1632,7 @@ void add_rounded_quad_ext(Scene *scene, Vector2 *corners, bool *rounded, float r
 	context->vertices->length += n*3*context->vertex_size;
 }
 
-void add_rounded_quad_outline_ext(Scene *scene, Vector2 *corners, bool *rounded, float radius,
+void add_rounded_quad_outline_ex(Scene *scene, Vector2 *corners, bool *rounded, float radius,
 	i32 segments_per_corner, float thickness, Vector4 color)
 {
 	Render_Context *context = scene_get_and_activate_context(scene);
@@ -1655,22 +1655,22 @@ void add_rounded_quad_outline_ext(Scene *scene, Vector2 *corners, bool *rounded,
 
 void add_rounded_quad(Scene *scene, Vector2 *corners, bool *rounded, float radius, Vector4 color)
 {
-	add_rounded_quad_ext(scene, corners, rounded, radius, 20, color);
+	add_rounded_quad_ex(scene, corners, rounded, radius, 20, color);
 }
 
 void add_rounded_quad_outline(Scene *scene, Vector2 *corners, bool *rounded, float radius,
 	Vector4 color)
 {
-	add_rounded_quad_outline_ext(scene, corners, rounded, radius, 20, 1, color);
+	add_rounded_quad_outline_ex(scene, corners, rounded, radius, 20, 1, color);
 }
 
-void add_rounded_rectangle_ext(Scene *scene, float x, float y, float w, float h, float radius,
+void add_rounded_rectangle_ex(Scene *scene, float x, float y, float w, float h, float radius,
 	i32 segments_per_corner, Vector4 color)
 {
 	// Vector2 rect_corners[4] = { { x, y }, { x, y+h }, { x+w, y+h }, { x+w, y } };
 	Vector2 rect_corners[4] = { { x, y }, { x + w, y }, { x+w, y+h }, { x, y + h } };
 	bool rounded[4] = { true, true, true, true };
-	add_rounded_quad_ext(scene, rect_corners, rounded, radius, 20, color);
+	add_rounded_quad_ex(scene, rect_corners, rounded, radius, 20, color);
 }
 
 void add_rounded_rectangle(Scene *scene, float x, float y, float w, float h, float radius,
@@ -1679,7 +1679,7 @@ void add_rounded_rectangle(Scene *scene, float x, float y, float w, float h, flo
 	// Vector2 rect_corners[4] = { { x, y }, { x, y+h }, { x+w, y+h }, { x+w, y } };
 	Vector2 rect_corners[4] = { { x, y }, { x + w, y }, { x+w, y+h }, { x, y + h } };
 	bool rounded[4] = { true, true, true, true };
-	add_rounded_quad_ext(scene, rect_corners, rounded, radius, 20, color);
+	add_rounded_quad_ex(scene, rect_corners, rounded, radius, 20, color);
 }
 
 void add_rounded_rectangle_outline(Scene *scene, float x, float y, float w, float h, float radius,
@@ -1688,7 +1688,7 @@ void add_rounded_rectangle_outline(Scene *scene, float x, float y, float w, floa
 	// Vector2 rect_corners[4] = { { x, y }, { x, y+h }, { x+w, y+h }, { x+w, y } };
 	Vector2 rect_corners[4] = { { x, y }, { x + w, y }, { x+w, y+h }, { x, y + h } };
 	bool rounded[4] = { true, true, true, true };
-	add_rounded_quad_outline_ext(scene, rect_corners, rounded, radius, 20, 1, color);
+	add_rounded_quad_outline_ex(scene, rect_corners, rounded, radius, 20, 1, color);
 }
 
 i32 load_glyph(Scene *scene, Font *font, i32 size, u32 c)
