@@ -1,7 +1,3 @@
-/*
-Last updated 2026-07-23.
-*/
-
 #include <math.h>
 
 #include "au_core.h"
@@ -34,6 +30,7 @@ i32 au_ffs(u64 x)
 	if (x == 0) return -1;
 	return (63 - __builtin_ctzll(x));
 }
+
 i32 au_fls(u64 x)
 {
 	if (x == 0) return -1;
@@ -87,7 +84,6 @@ i32 au_fls(u64 x)
 }
 
 #endif
-
 
 u64 au_round_up_to_pow2(u64 x)
 {

@@ -229,7 +229,7 @@ Vector4 hex2vec(u32 hex)
 /********************************** Context and Scene setup ***************************************/
 
 // XX error handling
-i32 compile_shader_program(const char *vertex_source, const char *fragment_source)
+static i32 compile_shader_program(const char *vertex_source, const char *fragment_source)
 {
 	unsigned int vertex_shader = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vertex_shader, 1, &vertex_source, NULL);
@@ -268,7 +268,7 @@ i32 compile_shader_program(const char *vertex_source, const char *fragment_sourc
 	return shader_program;
 }
 
-Render_Context *render_context_create(Arena *arena, Window *window, const char *vertex_shader,
+static Render_Context *render_context_create(Arena *arena, Window *window, const char *vertex_shader,
 	const char *fragment_shader, i32 vertex_size, bool use_screen_coords)
 {
 	Render_Context *context = aalloc(arena, sizeof(Render_Context));
@@ -364,7 +364,7 @@ i32 window_create_render_context(Window *win, const char *vertex_shader, const c
 
 // Todo: unload
 
-void reset_render_context(Render_Context *context)
+static void reset_render_context(Render_Context *context)
 {
 	i32 viewport[4];
 	glGetIntegerv(GL_VIEWPORT, viewport);
@@ -375,7 +375,7 @@ void reset_render_context(Render_Context *context)
 	context->vertices->length = 0;
 }
 
-void flush_render_context(Render_Context *context)
+static void flush_render_context(Render_Context *context)
 {
 	if (context->vertices->length == 0) return;
 	glUseProgram(context->shader_program);
@@ -420,7 +420,7 @@ static void flush_active_context(Renderer_Data *rdata)
 	}
 }
 
-void renderer_callback(Window *window)
+static void renderer_callback(Window *window)
 {
 	ensure_renderer_data(window);
 	Renderer_Data *rdata = (Renderer_Data *) window->renderer_data;
@@ -795,8 +795,8 @@ static Packing_Node find_node_for_bitmap(Arena *arena, Packing_Node *start, i32 
 	}
 }
 
-i32 load_bitmap_internal(Render_Context *context, const void *data, i32 width, i32 height, i32 bytes_per_row,
-	i32 channels, Bitmap *b)
+static i32 load_bitmap_internal(Render_Context *context, const void *data, i32 width, i32 height,
+	i32 bytes_per_row, i32 channels, Bitmap *b)
 {
 	// 1px of padding to avoid blending adjacent bitmaps
 	i32 img_w = width + 1;
@@ -1120,7 +1120,7 @@ void unload_image(Scene *scene, i32 image_i)
 
 /********************************** Internal geometry generation **********************************/
 
-i32 generate_rectangle(float *data, i32 stride, float x, float y, float w, float h, Vector4 color)
+static i32 generate_rectangle(float *data, i32 stride, float x, float y, float w, float h, Vector4 color)
 {
 	data[0*stride + 0] = x;
 	data[0*stride + 1] = y;
@@ -1133,7 +1133,7 @@ i32 generate_rectangle(float *data, i32 stride, float x, float y, float w, float
 	return 4;
 }
 
-i32 generate_quad(float *data, i32 stride, Vector2 *corners)
+static i32 generate_quad(float *data, i32 stride, Vector2 *corners)
 {
 	for (i32 i=0; i<4; i++) {
 		data[i*stride + 0] = corners[i].x;
@@ -1142,7 +1142,7 @@ i32 generate_quad(float *data, i32 stride, Vector2 *corners)
 	return 4;
 }
 
-i32 generate_circle(float *data, i32 stride, float x, float y, float r, i32 segments)
+static i32 generate_circle(float *data, i32 stride, float x, float y, float r, i32 segments)
 {
 	// generate_circle is separate from generate_circle_arc because a circle is a connected shape,
 	// so we don't generate the last vertex at stop_angle==2PI.
@@ -1154,7 +1154,7 @@ i32 generate_circle(float *data, i32 stride, float x, float y, float r, i32 segm
 	return segments;
 }
 
-i32 generate_circle_arc(float *data, i32 stride, float x, float y, float r, float start_angle,
+static i32 generate_circle_arc(float *data, i32 stride, float x, float y, float r, float start_angle,
 	float stop_angle, i32 segments)
 {
 	float d_angle = stop_angle - start_angle;
@@ -1167,7 +1167,8 @@ i32 generate_circle_arc(float *data, i32 stride, float x, float y, float r, floa
 }
 
 // (x/a)^n + (y/b)^n = 1.0
-i32 generate_superellipse(float *data, i32 stride, float x, float y, float a, float b, float n, i32 segments)
+static i32 generate_superellipse(float *data, i32 stride, float x, float y, float a, float b, float n,
+	i32 segments)
 {
 	for (i32 i = 0; i < segments; i++) {
 		float angle = 2.0f * M_PI * i / segments;
@@ -1179,7 +1180,7 @@ i32 generate_superellipse(float *data, i32 stride, float x, float y, float a, fl
 	return segments;
 }
 
-double signed_area(Vector2 *p, i32 n) {
+static double signed_area(Vector2 *p, i32 n) {
 	double sum = 0.0;
 	for (int i = 0; i < n; ++i) {
 		int j = (i + 1) % n;
@@ -1188,7 +1189,7 @@ double signed_area(Vector2 *p, i32 n) {
 	return 0.5 * sum;
 }
 
-i32 generate_rounded_quad(float *data, i32 stride, Vector2 *corners, bool *rounded, float radius,
+static i32 generate_rounded_quad(float *data, i32 stride, Vector2 *corners, bool *rounded, float radius,
 	i32 segments_per_corner)
 {
 	i32 n = 0;

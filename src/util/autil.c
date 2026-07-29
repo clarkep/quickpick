@@ -47,22 +47,22 @@ void afree(Arena *arena, const void *ptr);
 
 DLL_LINK Arena app_arena = { 0 };
 
-void errexit(const char *format, ...)
-{
-	va_list args;
-	va_start(args, format);
-	vfprintf(stderr, format, args );
-	va_end(args);
-	exit(1);
-}
-
-void fire_assert(const char *format, va_list args)
+static void fire_assert(const char *format, va_list args)
  {
 	if (format) {
 		vfprintf(stderr, format, args );
 	} else {
 		fprintf(stderr, "Programmer error, have to stop.\n");
 	}
+	exit(1);
+}
+
+void errexit(const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	vfprintf(stderr, format, args );
+	va_end(args);
 	exit(1);
 }
 
@@ -84,7 +84,7 @@ void errexit_unless(bool condition, const char *format, ...)
 
 #pragma intrinsic(_BitScanForward64, _BitScanReverse64)
 
-i32 core_ffs(u64 x)
+static i32 core_ffs(u64 x)
 {
 	unsigned long i;
 	if (_BitScanForward64(&i, x))
@@ -92,7 +92,7 @@ i32 core_ffs(u64 x)
 	return -1;
 }
 
-i32 core_fls(u64 x)
+static i32 core_fls(u64 x)
 {
 	unsigned long i;
 	if (_BitScanReverse64(&i, x))
@@ -102,12 +102,13 @@ i32 core_fls(u64 x)
 
 #elif defined(__GNUC__) || defined(__clang__)
 
-i32 core_ffs(u64 x)
+static i32 core_ffs(u64 x)
 {
 	if (x == 0) return -1;
 	return (63 - __builtin_ctzll(x));
 }
-i32 core_fls(u64 x)
+
+static i32 core_fls(u64 x)
 {
 	if (x == 0) return -1;
 	return (63 - __builtin_clzll(x));
@@ -137,7 +138,7 @@ static i32 _clz32(u32 x) {
      return n;
  }
 
- static i32 _ctz64(u64 x) {
+static i32 _ctz64(u64 x) {
  	u32 lo = (u32) x;
  	u32 hi = (u32) (x >> 32);
  	return lo ? _ctz32(lo) : 32 + _ctz32(hi);
@@ -148,12 +149,12 @@ static i32 _clz64(u64 x) {
      return hi ? _clz32(hi) : 32 + _clz32((u32)x);
  }
 
-i32 core_ffs(u64 x)
+static i32 core_ffs(u64 x)
 {
 	return (63 - _ctz64(x));
 }
 
-i32 core_fls(u64 x)
+static i32 core_fls(u64 x)
 {
 	return (63 - _clz64(x));
 }
@@ -345,7 +346,7 @@ static void *au_reserve_memory(void *loc, u64 size)
 #endif
 }
 
-void au_release_memory(void *loc, u64 size)
+static void au_release_memory(void *loc, u64 size)
 {
 #ifdef _WIN32
 	// Size passed to VirtualFree with MEM_RELEASE must be zero.
@@ -387,32 +388,6 @@ static void *try_reserve_and_commit_anywhere(u64 reserve_size, u64 commit_size)
 			return NULL;
 		}
 	}
-}
-
-void *amap_memory(void *loc, u64 size)
-{
-#ifdef _WIN32
-	void *result = VirtualAlloc(loc, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	DWORD err = GetLastError();
-	if (!result)
-		printf("err: %lu\n", err);
-#else
-	void *result = mmap(loc, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
-		-1, 0);
-	if (result == MAP_FAILED)
-		printf("errno: %d\n", errno);
-	result = (result == (u8 *) MAP_FAILED) ? NULL : result;
-#endif
-	return result;
-}
-
-bool aunmap_memory(void *loc, u64 size)
-{
-#ifdef _WIN32
-	return VirtualFree(loc, 0, MEM_RELEASE);
-#else
-	return munmap(loc, size) + 1;
-#endif
 }
 
 bool arena_init_at(Arena *arena, void *static_start, u64 static_reserve_size, u64 static_commit_size,

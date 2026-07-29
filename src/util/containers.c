@@ -113,7 +113,7 @@ void dynarray_expand_by(void *dynarray, u64 added_capacity)
 
 /************************************** Hash Table ************************************************/
 
-u64 fnv1a_64(const void *data, u64 len)
+static u64 fnv1a_64(const void *data, u64 len)
 {
 	u8 *p = (u8 *) data;
 	u64 prime = 0x00000100000001b3;
@@ -123,6 +123,17 @@ u64 fnv1a_64(const void *data, u64 len)
 		hash *= prime;
 	}
 	return hash;
+}
+
+Hash_Table *hash_table_create(Arena *arena, u64 capacity, bool copy_keys, bool copy_values)
+{
+	Hash_Table *res = aalloc(arena, sizeof(Hash_Table));
+	if (hash_table_init(res, arena, capacity, copy_keys, copy_values)) {
+		return res;
+	} else {
+		afree(arena, res);
+		return NULL;
+	}
 }
 
 bool hash_table_init(Hash_Table *table, Arena *arena, u64 capacity, bool copy_keys, bool copy_values)
@@ -140,15 +151,11 @@ bool hash_table_init(Hash_Table *table, Arena *arena, u64 capacity, bool copy_ke
 	return true;
 }
 
-Hash_Table *hash_table_create(Arena *arena, u64 capacity, bool copy_keys, bool copy_values)
+void hash_table_delete(Hash_Table *table)
 {
-	Hash_Table *res = aalloc(arena, sizeof(Hash_Table));
-	if (hash_table_init(res, arena, capacity, copy_keys, copy_values)) {
-		return res;
-	} else {
-		afree(arena, res);
-		return NULL;
-	}
+	Arena *arena = table->arena;
+	hash_table_deinit(table);
+	afree(arena, table);
 }
 
 void hash_table_deinit(Hash_Table *table)
@@ -166,20 +173,13 @@ void hash_table_deinit(Hash_Table *table)
 	afree(arena, table->d);
 }
 
-void hash_table_delete(Hash_Table *table)
-{
-	Arena *arena = table->arena;
-	hash_table_deinit(table);
-	afree(arena, table);
-}
-
-bool keys_equal(const void *key1, u64 key1_length, const void *key2, u64 key2_length)
+static bool keys_equal(const void *key1, u64 key1_length, const void *key2, u64 key2_length)
 {
 	return key1_length == key2_length && !memcmp(key1, key2, key1_length);
 }
 
 // Inner conflict-resolution loop for set and get
-Hash_Entry *entry_for_hash(Hash_Table *table, u64 hash, const void *key, u64 key_len)
+static Hash_Entry *entry_for_hash(Hash_Table *table, u64 hash, const void *key, u64 key_len)
 {
 	u64 n = table->capacity;
 	u64 h_i_start = hash % n;

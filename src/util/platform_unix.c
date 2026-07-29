@@ -117,7 +117,7 @@ double au_os_time_native_to_nanoseconds() { return 1E3; }
 
 double au_os_time_native_to_seconds() { return 1E-6; }
 
-double cpu_time_to_nanoseconds = 0.0;
+double cpu_time_to_ns = 0.0;
 
 #ifdef __aarch64
 u64 au_cpu_time_() {
@@ -132,10 +132,10 @@ double au_cpu_time_to_nanoseconds() {
 #ifdef __aarch64__
 	return 1.0;
 #else
-	if (!cpu_time_to_nanoseconds) {
+	if (!cpu_time_to_ns) {
 		au_calibrate_by_sleeping(15);
 	}
-	return cpu_time_to_nanoseconds;
+	return cpu_time_to_ns;
 #endif
 }
 
@@ -143,10 +143,10 @@ double au_cpu_time_to_seconds() {
 #ifdef __aarch64__
 	return 1E-9;
 #else
-	if (!cpu_time_to_nanoseconds) {
+	if (!cpu_time_to_ns) {
 		au_calibrate_by_sleeping(15);
 	}
-	return cpu_time_to_nanoseconds * 1E-9;
+	return cpu_time_to_ns * 1E-9;
 #endif
 }
 
@@ -160,7 +160,7 @@ void au_calibrate_by_sleeping(i32 ms) {
 	i64 os_time_stop = au_os_time_native();
 	i64 cpu_time_stop = au_cpu_time();
 
-	cpu_time_to_nanoseconds =
+	cpu_time_to_ns =
 			((os_time_stop - os_time_start) * au_os_time_native_to_nanoseconds()) /
 			(double)(cpu_time_stop - cpu_time_start);
 #endif

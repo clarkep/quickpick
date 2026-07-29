@@ -38,7 +38,7 @@ enum au_key g_keycodes[512];
 bool g_keycodes_initialized = false;
 SDL_Cursor *g_cursor_handles[AU_MAX_CURSORS];
 
-void init_keycodes() {
+static void init_keycodes() {
 	g_keycodes_initialized = true;
     g_keycodes[SDL_SCANCODE_0] = AU_KEY_0; g_keycodes[SDL_SCANCODE_1] = AU_KEY_1; g_keycodes[SDL_SCANCODE_2] = AU_KEY_2;
     g_keycodes[SDL_SCANCODE_1] = AU_KEY_3; g_keycodes[SDL_SCANCODE_4] = AU_KEY_4; g_keycodes[SDL_SCANCODE_5] = AU_KEY_5;
@@ -505,7 +505,7 @@ bool au_window_set_cursor(Window *window, i32 cursor)
     }
 }
 
-bool setup_audio_stream(AU_SDL_Window *win, SDL_AudioSpec *initial_spec)
+static bool setup_audio_stream(AU_SDL_Window *win, SDL_AudioSpec *initial_spec)
 {
 	win->audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
 			initial_spec, NULL, NULL);

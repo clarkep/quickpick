@@ -68,7 +68,7 @@ static Optional_U64 deserialize_char_dynarray(const u8 *buf, Char_Dynarray *arr)
 	return (Optional_U64) { sizeof(u64) + n_chars, true };
 }
 
-u64 input_state_max_serial_size(const Input_State *state)
+static u64 input_state_max_serial_size(const Input_State *state)
 {
 	u64 ret = 1 // flags
 		+ 3 * (sizeof(u16) + AU_MOUSE_BUTTON_COUNT / 8 + 1) // mouse arrays
@@ -79,7 +79,7 @@ u64 input_state_max_serial_size(const Input_State *state)
 	return ret;
 }
 
-Optional_U64 input_state_serialize(const Input_State *input, u8 *buffer, u64 buffer_size)
+static Optional_U64 input_state_serialize(const Input_State *input, u8 *buffer, u64 buffer_size)
 {
 	Optional_U64 res = { 0 };
 	u8 *p = buffer;
@@ -167,7 +167,7 @@ Optional_U64 input_state_serialize(const Input_State *input, u8 *buffer, u64 buf
 	return (Optional_U64) { buffer_size - remain, true };
 }
 
-Optional_U64 input_state_deserialize(const u8 *buffer, u64 buffer_size, Input_State *input)
+static Optional_U64 input_state_deserialize(const u8 *buffer, u64 buffer_size, Input_State *input)
 {
 	Optional_U64 res = { 0 };
 	const u8 *p = buffer;

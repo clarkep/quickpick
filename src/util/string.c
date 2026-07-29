@@ -39,6 +39,15 @@ String string_ncopy_from_string(Arena *arena, String from, u64 n)
 	return res;
 }
 
+String string_format(Arena *arena, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	String ret = string_formatv(arena, fmt, args);
+	va_end(args);
+	return ret;
+}
+
 String string_formatv(Arena *arena, const char *fmt, va_list args)
 {
 	u64 capacity = 16;
@@ -62,15 +71,6 @@ String string_formatv(Arena *arena, const char *fmt, va_list args)
 	arealloc(arena, result_d, n+1);
 	result_d[n] = '\0';
 	return (String) { result_d, n };
-}
-
-String string_format(Arena *arena, const char *fmt, ...)
-{
-	va_list args;
-	va_start(args, fmt);
-	String ret = string_formatv(arena, fmt, args);
-	va_end(args);
-	return ret;
 }
 
 String string_append(Arena *arena, String s1, String s2)
