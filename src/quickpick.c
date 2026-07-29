@@ -1183,7 +1183,6 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 			// r
 			st->y_value = MIN(MAX(sqrtf(x_res*x_res+y_res*y_res)/(512*scale/2), 0.0), 1.0);
 		}
-		// xx check if we actually changed the color?
 		st->from_alternate_value = false;
 	}
 
@@ -1199,93 +1198,97 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 	int ind_tabs_y = main_button_y + main_button_h;
 	Vector4 buttons_border_color = hex2color(0xb0b0b0ff);
 	// tabs
-	static Tab_Select rgb_tabs;
-	static Tab_Select hsv_tabs;
-	static bool first_frame_setup_done = false;
-	if (!first_frame_setup_done) {
-		rgb_tabs.active_colors[0] = hex2color(0xc00000ff);
-		rgb_tabs.active_colors[1] = hex2color(0x00c000ff);
-		rgb_tabs.active_colors[2] = hex2color(0x0080ffff);
-		rgb_tabs.inactive_colors[0] = hex2color(0x700000ff);
-		rgb_tabs.inactive_colors[1] = hex2color(0x007000ff);
-		rgb_tabs.inactive_colors[2] = hex2color(0x0000c0ff);
-		rgb_tabs.active_text_color = hex2color(0xffffffff);
-		rgb_tabs.inactive_text_color = hex2color(0xa0a0a0ff);
-		rgb_tabs.labels[0] = 'R';
-		rgb_tabs.labels[1] = 'G';
-		rgb_tabs.labels[2] = 'B';
-		rgb_tabs.top = true;
-		for (int i=0; i<3; i++) {
-			hsv_tabs.active_colors[i] = bright_grey_bg;
-			hsv_tabs.inactive_colors[i] = dim_grey_bg;
+	{
+		static Tab_Select rgb_tabs;
+		static Tab_Select hsv_tabs;
+		static bool first_frame_setup_done = false;
+		if (!first_frame_setup_done) {
+			rgb_tabs.active_colors[0] = hex2color(0xc00000ff);
+			rgb_tabs.active_colors[1] = hex2color(0x00c000ff);
+			rgb_tabs.active_colors[2] = hex2color(0x0080ffff);
+			rgb_tabs.inactive_colors[0] = hex2color(0x700000ff);
+			rgb_tabs.inactive_colors[1] = hex2color(0x007000ff);
+			rgb_tabs.inactive_colors[2] = hex2color(0x0000c0ff);
+			rgb_tabs.active_text_color = hex2color(0xffffffff);
+			rgb_tabs.inactive_text_color = hex2color(0xa0a0a0ff);
+			rgb_tabs.labels[0] = 'R';
+			rgb_tabs.labels[1] = 'G';
+			rgb_tabs.labels[2] = 'B';
+			rgb_tabs.top = true;
+			for (int i=0; i<3; i++) {
+				hsv_tabs.active_colors[i] = bright_grey_bg;
+				hsv_tabs.inactive_colors[i] = dim_grey_bg;
+			}
+			float sel_hov_brightness = 0.4f;
+			hsv_tabs.active_text_color = rgb_tabs.active_text_color;
+			hsv_tabs.inactive_text_color = rgb_tabs.inactive_text_color;
+			rgb_tabs.hover_brightness = sel_hov_brightness;
+			rgb_tabs.anim_vdt = anim_vdt;
+			rgb_tabs.st = st;
+			hsv_tabs.labels[0] = 'H';
+			hsv_tabs.labels[1] = 'S';
+			hsv_tabs.labels[2] = 'V';
+			hsv_tabs.hover_brightness = sel_hov_brightness;
+			hsv_tabs.anim_vdt = anim_vdt;
+			hsv_tabs.st = st;
+			hsv_tabs.top = false;
+			first_frame_setup_done = true;
 		}
-		float sel_hov_brightness = 0.4f;
-		hsv_tabs.active_text_color = rgb_tabs.active_text_color;
-		hsv_tabs.inactive_text_color = rgb_tabs.inactive_text_color;
-		rgb_tabs.hover_brightness = sel_hov_brightness;
-		rgb_tabs.anim_vdt = anim_vdt;
-		rgb_tabs.st = st;
-		hsv_tabs.labels[0] = 'H';
-		hsv_tabs.labels[1] = 'S';
-		hsv_tabs.labels[2] = 'V';
-		hsv_tabs.hover_brightness = sel_hov_brightness;
-		hsv_tabs.anim_vdt = anim_vdt;
-		hsv_tabs.st = st;
-		hsv_tabs.top = false;
-		first_frame_setup_done = true;
-	}
-	rgb_tabs.border_color = buttons_border_color;
-	hsv_tabs.border_color = rgb_tabs.border_color;
-	if (!st->mode) {
-		rgb_tabs.sel_i = st->which_fixed;
-		hsv_tabs.sel_i = -1;
-	} else {
-		rgb_tabs.sel_i = -1;
-		hsv_tabs.sel_i = st->which_fixed;
-	}
-	rgb_tabs.x = top_tabs_x;
-	rgb_tabs.y = top_tabs_y;
-	rgb_tabs.w = top_tabs_w;
-	rgb_tabs.h = top_tabs_h;
-	if (tab_select(&rgb_tabs, input)) {
-		st->mode = 0;
-		st->which_fixed = rgb_tabs.sel_i;
-		update_color_or_mode(st, st->mode, st->which_fixed, ci);
-	}
-	hsv_tabs.x = main_button_x;
-	hsv_tabs.y = main_button_y + main_button_h;
-	hsv_tabs.w = main_button_w;
-	hsv_tabs.h = top_tabs_h;
-	if (tab_select(&hsv_tabs, input)) {
-		st->mode = 1;
-		st->which_fixed = hsv_tabs.sel_i;
-		update_color_or_mode(st, st->mode, st->which_fixed, ci);
+		rgb_tabs.border_color = buttons_border_color;
+		hsv_tabs.border_color = rgb_tabs.border_color;
+		if (!st->mode) {
+			rgb_tabs.sel_i = st->which_fixed;
+			hsv_tabs.sel_i = -1;
+		} else {
+			rgb_tabs.sel_i = -1;
+			hsv_tabs.sel_i = st->which_fixed;
+		}
+		rgb_tabs.x = top_tabs_x;
+		rgb_tabs.y = top_tabs_y;
+		rgb_tabs.w = top_tabs_w;
+		rgb_tabs.h = top_tabs_h;
+		if (tab_select(&rgb_tabs, input)) {
+			st->mode = 0;
+			st->which_fixed = rgb_tabs.sel_i;
+			update_color_or_mode(st, st->mode, st->which_fixed, ci);
+		}
+		hsv_tabs.x = main_button_x;
+		hsv_tabs.y = main_button_y + main_button_h;
+		hsv_tabs.w = main_button_w;
+		hsv_tabs.h = top_tabs_h;
+		if (tab_select(&hsv_tabs, input)) {
+			st->mode = 1;
+			st->which_fixed = hsv_tabs.sel_i;
+			update_color_or_mode(st, st->mode, st->which_fixed, ci);
+		}
 	}
 	// main button
-	static float main_button_hover_v = 0;
-	float hov_bright = 0.4f;
-	Vector4 fixed_button_color = color_brightness(fixed_indication_color,
-		main_button_hover_v * hov_bright);
-	add_rectangle(st->main_scene, main_button_x, main_button_y, main_button_w, main_button_h,
-		fixed_button_color);
-	add_rectangle_outline_ex(st->main_scene, main_button_x, main_button_y, main_button_w,
-		main_button_h, 1*scale, buttons_border_color);
-	i32 main_button_text_x = main_button_x + main_button_w/2.0f-st->large_char_width/2.0f;
-	i32 main_button_text_y = main_button_y + main_button_h/2.0f+FONT_LARGE_PX*CENTER_EM;
-	add_text(st->main_scene, st->font, FONT_LARGE_PX, color_strings[st->mode][st->which_fixed],
-		main_button_text_x, main_button_text_y, WHITE);
-	if (CheckCollisionPointRec(pos, (Rectangle) { main_button_x, main_button_y, main_button_w,
-		ind_tabs_y-main_button_y})) {
-		if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
-			st->which_fixed = (st->which_fixed + 1) % 3;
-			update_color_or_mode(st, st->mode, st->which_fixed, ci);
-			main_button_hover_v = 0;
+	{
+		static float main_button_hover_v = 0;
+		float hov_bright = 0.4f;
+		Vector4 fixed_button_color = color_brightness(fixed_indication_color,
+			main_button_hover_v * hov_bright);
+		add_rectangle(st->main_scene, main_button_x, main_button_y, main_button_w, main_button_h,
+			fixed_button_color);
+		add_rectangle_outline_ex(st->main_scene, main_button_x, main_button_y, main_button_w,
+			main_button_h, 1*scale, buttons_border_color);
+		i32 main_button_text_x = main_button_x + main_button_w/2.0f-st->large_char_width/2.0f;
+		i32 main_button_text_y = main_button_y + main_button_h/2.0f+FONT_LARGE_PX*CENTER_EM;
+		add_text(st->main_scene, st->font, FONT_LARGE_PX, color_strings[st->mode][st->which_fixed],
+			main_button_text_x, main_button_text_y, WHITE);
+		if (CheckCollisionPointRec(pos, (Rectangle) { main_button_x, main_button_y, main_button_w,
+			ind_tabs_y-main_button_y})) {
+			if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
+				st->which_fixed = (st->which_fixed + 1) % 3;
+				update_color_or_mode(st, st->mode, st->which_fixed, ci);
+				main_button_hover_v = 0;
+			}
+			if (!input->mouse_down[AU_MOUSE_BUTTON_LEFT]) {
+				st->animating = st->animating || value_creep_towards(&main_button_hover_v, 1.0f, anim_vdt);
+			}
+		} else {
+			st->animating = st->animating || value_creep_towards(&main_button_hover_v, 0.0f, anim_vdt);
 		}
-		if (!input->mouse_down[AU_MOUSE_BUTTON_LEFT]) {
-			st->animating = value_creep_towards(&main_button_hover_v, 1.0f, anim_vdt);
-		}
-	} else {
-		st->animating = value_creep_towards(&main_button_hover_v, 0.0f, anim_vdt);
 	}
 
 	// fixed value slider
@@ -1327,8 +1330,8 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		// Todo: because outline color is the same as fixed_indication_color for hsv modes, the slider
 		// can completely disappear in rare cases.
 		Vector4 outline_color = bright_grey_bg;
-		add_rounded_rectangle_ex(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f, val_slider_w+out_w,
-			bar_h+out_w, 12.0f*scale, 10, outline_color);
+		add_rounded_rectangle_ex(st->main_scene, val_slider_x-out_w/2.0f, val_slider_y-(bar_h+out_w)/2.0f,
+			val_slider_w+out_w, bar_h+out_w, 12.0f*scale, 10, outline_color);
 		Scene *scene = st->mode == 1 ? st->hsv_grad_scene : st->main_scene;
 		add_gradient_rectangle_rounded_ends(scene, val_slider_x, val_slider_y-bar_h/2.0f,
 			val_slider_w, bar_h, 8.0f*scale, 10, corner_cols);
