@@ -16,6 +16,8 @@ typedef struct string {
 
 #define NULLSTRING ((String) { 0, 0 })
 
+String string_from(char *from);
+
 String string_copy_from(Arena *arena, char *from);
 
 String string_ncopy_from(Arena *arena, char *from, u64 n);
