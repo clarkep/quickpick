@@ -60,13 +60,13 @@ typedef struct state {
 	Scene *main_scene;
 	Scene *hsv_grad_scene;
 	int mode; // rgb(0) or hsv(1)
-	int which_fixed; // red(0), green(1) or blue(2); or hue(0), saturation(1), or value(2)
+	int which_s; // red(0), green(1) or blue(2); or hue(0), saturation(1), or value(2)
 	enum cursor_state cursor_state;
 	bool animating;
 	bool square_dragging;
 	bool val_slider_dragging;
 	// The coordinate that that the slider controls, 0-1
-	float fixed_value;
+	float s_value;
 	// the other two dims, usually x and y but can be theta/r when fixed=value.
 	float x_value;
 	float y_value;
@@ -342,12 +342,12 @@ float luminance(float r, float g, float b) {
     return 0.2126f * rs + 0.7152f * gs + 0.0722f * bs;
 }
 
-bool CheckCollisionPointRec(Vector2 point, Rectangle rec) {
+bool point_in_rect(Vector2 point, Rectangle rec) {
 	return point.x >= rec.x && point.x <= rec.x + rec.width &&
 	       point.y >= rec.y && point.y <= rec.y + rec.height;
 }
 
-bool CheckCollisionPointCircle(Vector2 point, Vector2 center, float radius) {
+bool point_in_circle(Vector2 point, Vector2 center, float radius) {
 	float dx = point.x - center.x;
 	float dy = point.y - center.y;
 	return (dx*dx + dy*dy) <= (radius * radius);
@@ -414,29 +414,29 @@ void update_color_or_mode(struct state *st, int mode, int fixed, struct color_in
 
 	if (st->mode) {
 		if (fixed == 0) {
-			st->fixed_value = cur_hsv.x;
+			st->s_value = cur_hsv.x;
 			st->x_value = cur_hsv.y;
 			st->y_value = cur_hsv.z;
 		} else if (fixed == 1) {
-			st->fixed_value = cur_hsv.y;
+			st->s_value = cur_hsv.y;
 			st->x_value = cur_hsv.x;
 			st->y_value = cur_hsv.z;
 		} else if (fixed == 2) {
-			st->fixed_value = cur_hsv.z;
+			st->s_value = cur_hsv.z;
 			st->x_value = cur_hsv.x;
 			st->y_value = cur_hsv.y;
 		}
 	} else {
 		if (fixed == 0) {
-			st->fixed_value = cur_rgb.x;
+			st->s_value = cur_rgb.x;
 			st->x_value = cur_rgb.y;
 			st->y_value = cur_rgb.z;
 		} else if (fixed == 1) {
-			st->fixed_value = cur_rgb.y;
+			st->s_value = cur_rgb.y;
 			st->x_value = cur_rgb.z;
 			st->y_value = cur_rgb.x;
 		} else if (fixed == 2) {
-			st->fixed_value = cur_rgb.z;
+			st->s_value = cur_rgb.z;
 			st->x_value = cur_rgb.x;
 			st->y_value = cur_rgb.y;
 		}
@@ -452,10 +452,10 @@ struct color_info current_color(struct state *st)
 			res.rgb = (Vector4) { st->alternate_value.x, st->alternate_value.y,
 				st->alternate_value.z, 1.0f };
 		} else {
-			float v1 = st->fixed_value;
+			float v1 = st->s_value;
 			float v2 = st->x_value;
 			float v3 = st->y_value;
-			switch (st->which_fixed) {
+			switch (st->which_s) {
 			case 0:
 				res.rgb = (Vector4) { v1, v2, v3, 1.0f };
 				break;
@@ -473,10 +473,10 @@ struct color_info current_color(struct state *st)
 			res.hsv = (Vector4) { st->alternate_value.x, st->alternate_value.y,
 				st->alternate_value.z, 1.0f };
 		} else {
-			float v1 = st->fixed_value;
+			float v1 = st->s_value;
 			float v2 = st->x_value;
 			float v3 = st->y_value;
-			switch (st->which_fixed) {
+			switch (st->which_s) {
 			case 0:
 				res.hsv = (Vector4) { v1, v2, v3, 1.0f };
 			break;
@@ -492,7 +492,7 @@ struct color_info current_color(struct state *st)
 		res.rgb = hsv_to_rgb(res.hsv);
 	}
 	if (st->from_alternate_value) {
-		update_color_or_mode(st, st->mode, st->which_fixed, res);
+		update_color_or_mode(st, st->mode, st->which_s, res);
 	}
 	return res;
 }
@@ -717,9 +717,9 @@ void draw_axes(int x, int y, int w, int h, float scale, struct state *st)
 
 	char *x_label;
 	char *y_label;
-	if (!(st->mode == 1 && st->which_fixed == 1)) {
-		x_label = color_strings[st->mode][(st->which_fixed+1)%3];
-		y_label = color_strings[st->mode][(st->which_fixed+2)%3];
+	if (!(st->mode == 1 && st->which_s == 1)) {
+		x_label = color_strings[st->mode][(st->which_s+1)%3];
+		y_label = color_strings[st->mode][(st->which_s+2)%3];
 	} else {
 		x_label = color_strings[1][0];
 		y_label = color_strings[1][2];
@@ -800,7 +800,7 @@ bool tab_select(Tab_Select *self, Input_State *input)
 
 	bool updated = false;
 	float hover_targets[3] = { 0.0f, 0.0f, 0.0f };
-	if (CheckCollisionPointRec(pos, (Rectangle) { self->x, self->y, self->w, self->h})) {
+	if (point_in_rect(pos, (Rectangle) { self->x, self->y, self->w, self->h})) {
 		int tab_i = CLAMP((pos.x - self->x) / (self->w / 3.0f), 0, 2);
 		if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT] && tab_i != self->sel_i) {
 			self->sel_i = tab_i;
@@ -903,7 +903,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 			st->text_color);
 	}
 	Vector2 pos = { input->pointer_x, input->pointer_y };
-	bool hit = CheckCollisionPointRec(pos, (Rectangle) { self->x, self->y, self->w, self->h });
+	bool hit = point_in_rect(pos, (Rectangle) { self->x, self->y, self->w, self->h });
 	// xx can this logic be simplified?
 	if ((hit && !input->mouse_down[AU_MOUSE_BUTTON_LEFT]) || self->dragging) {
 		hovered = true;
@@ -1062,7 +1062,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 	Vector4 dim_grey_bg = hex2color(0x505050ff);
 	Vector4 fixed_indication_color;
 	if (st->mode == 0) {
-		int wf = st->which_fixed;
+		int wf = st->which_s;
 		int rgb_fixed_ind[] = { 0xc00000ff, 0x00c000ff, 0x0080ffff };
 		fixed_indication_color = hex2color(rgb_fixed_ind[wf]);
 	} else {
@@ -1093,7 +1093,8 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 	int out_ind_bottom_x = (st->main_scene->w - out_ind_bottom_w) / 2.0f;
 	int out_ind_top_y = 0;
 	int out_ind_bottom_y = 0;
-	if (st->outfile.path) {
+	if (st->outfile.path)
+	{
 		out_ind_bottom_y = out_ind_top_y + out_ind_h;
 		Vector2 out_ind_verts[4] = {
 			{ out_ind_bottom_x, out_ind_bottom_y },
@@ -1124,66 +1125,71 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 	int grad_circle_x = grad_square_x + 512*scale/2;
 	int grad_circle_y = grad_square_y + 512*scale/2;
 	int grad_circle_r = 512*scale/2;
-	if (st->mode == 0) {
-		draw_gradient_square_rgb(st, grad_square_x, grad_square_y, 512*scale, st->which_fixed,
-			st->fixed_value);
+	if (st->mode == 0)
+	{
+		draw_gradient_square_rgb(st, grad_square_x, grad_square_y, 512*scale, st->which_s,
+			st->s_value);
 		draw_axes(grad_square_x, grad_square_y, grad_x_axis_h, grad_y_axis_w, scale, st);
-	} else {
-		if (st->which_fixed == 2) {
+	}
+	else
+	{
+		if (st->which_s == 2) {
 			grad_square = false;
 			draw_gradient_circle_and_axes(grad_circle_x, grad_circle_y, grad_circle_r,
-				st->fixed_value, st);
+				st->s_value, st);
 		} else {
-			draw_gradient_square_hsv(st, grad_square_x, grad_square_y, 512*scale, st->which_fixed,
-				st->fixed_value);
+			draw_gradient_square_hsv(st, grad_square_x, grad_square_y, 512*scale, st->which_s,
+				st->s_value);
 			draw_axes(grad_square_x, grad_square_y, grad_x_axis_h, grad_y_axis_w, scale, st);
 		}
 	}
 	// indicator circle
-	int ind_x, ind_y;
-	if (grad_square) {
-		ind_x = grad_square_x + st->x_value * (512*scale);
-		ind_y = grad_square_y + 512*scale - st->y_value * (512*scale);
-	} else {
-		ind_x = grad_circle_x + grad_circle_r*st->y_value*cosf(st->x_value * 2*F_PI);
-		ind_y = grad_circle_y - grad_circle_r*st->y_value*sinf(st->x_value * 2*F_PI);
-	}
-	add_circle_outline_ex(st->main_scene, ind_x, ind_y, 6*scale, 20, 1*scale, st->text_color);
-	int r2 = 4*scale;
-	int r3 = 8*scale;
-	add_line_ex(st->main_scene, ind_x - r3, ind_y, ind_x - r2, ind_y, 1*scale, st->text_color);
-	add_line_ex(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*scale, st->text_color);
-	add_line_ex(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*scale, st->text_color);
-	add_line_ex(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*scale, st->text_color);
-	if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
-		Rectangle rec = {grad_square_x, grad_square_y, 512*scale, 512*scale};
-		Vector2 c = { grad_square_x + 512*scale/2, grad_square_y + 512*scale/2 };
-		if ((grad_square && CheckCollisionPointRec(pos, rec))
-			|| (!grad_square && CheckCollisionPointCircle(pos, c, 512*scale/2))) {
-			st->square_dragging = true;
-		}
-	}
-	if (st->square_dragging) {
-		if (input->pointer_dy || input->pointer_dx)
-			st->animating = true;
-		int y_adj = 3*scale;
-		int x_adj = 2*scale;
+	{
+		int ind_x, ind_y;
 		if (grad_square) {
-			st->x_value = MIN(MAX((pos.x - x_adj - grad_square_x) / (512*scale), 0.0f), 1.0f);
-			// xx off by one?
-			st->y_value = MIN(MAX((grad_square_y + 512*scale - pos.y + y_adj) / (512*scale), 0.0f),
-				1.0f);
+			ind_x = grad_square_x + st->x_value * (512*scale);
+			ind_y = grad_square_y + 512*scale - st->y_value * (512*scale);
 		} else {
-			int x_res = pos.x -x_adj - (grad_square_x + 512*scale/2);
-			int y_res = pos.y - y_adj - (grad_square_y + 512*scale/2);
-			y_res = -y_res;
-			// theta
-			st->x_value = atan2(y_res, x_res) / (2*F_PI);
-			st->x_value = st->x_value < 0 ? 1.0 + st->x_value : st->x_value;
-			// r
-			st->y_value = MIN(MAX(sqrtf(x_res*x_res+y_res*y_res)/(512*scale/2), 0.0), 1.0);
+			ind_x = grad_circle_x + grad_circle_r*st->y_value*cosf(st->x_value * 2*F_PI);
+			ind_y = grad_circle_y - grad_circle_r*st->y_value*sinf(st->x_value * 2*F_PI);
 		}
-		st->from_alternate_value = false;
+		add_circle_outline_ex(st->main_scene, ind_x, ind_y, 6*scale, 20, 1*scale, st->text_color);
+		int r2 = 4*scale;
+		int r3 = 8*scale;
+		add_line_ex(st->main_scene, ind_x - r3, ind_y, ind_x - r2, ind_y, 1*scale, st->text_color);
+		add_line_ex(st->main_scene, ind_x + r2, ind_y, ind_x + r3, ind_y, 1*scale, st->text_color);
+		add_line_ex(st->main_scene, ind_x, ind_y - r3, ind_x, ind_y - r2, 1*scale, st->text_color);
+		add_line_ex(st->main_scene, ind_x, ind_y + r2, ind_x, ind_y + r3, 1*scale, st->text_color);
+		if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
+			Rectangle rec = {grad_square_x, grad_square_y, 512*scale, 512*scale};
+			Vector2 c = { grad_square_x + 512*scale/2, grad_square_y + 512*scale/2 };
+			if ((grad_square && point_in_rect(pos, rec))
+				|| (!grad_square && point_in_circle(pos, c, 512*scale/2))) {
+				st->square_dragging = true;
+			}
+		}
+		if (st->square_dragging) {
+			if (input->pointer_dy || input->pointer_dx)
+				st->animating = true;
+			int y_adj = 3*scale;
+			int x_adj = 2*scale;
+			if (grad_square) {
+				st->x_value = MIN(MAX((pos.x - x_adj - grad_square_x) / (512*scale), 0.0f), 1.0f);
+				// xx off by one?
+				st->y_value = MIN(MAX((grad_square_y + 512*scale - pos.y + y_adj) / (512*scale), 0.0f),
+					1.0f);
+			} else {
+				int x_res = pos.x -x_adj - (grad_square_x + 512*scale/2);
+				int y_res = pos.y - y_adj - (grad_square_y + 512*scale/2);
+				y_res = -y_res;
+				// theta
+				st->x_value = atan2(y_res, x_res) / (2*F_PI);
+				st->x_value = st->x_value < 0 ? 1.0 + st->x_value : st->x_value;
+				// r
+				st->y_value = MIN(MAX(sqrtf(x_res*x_res+y_res*y_res)/(512*scale/2), 0.0), 1.0);
+			}
+			st->from_alternate_value = false;
+		}
 	}
 
 	// fixed color buttons
@@ -1237,11 +1243,11 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		rgb_tabs.border_color = buttons_border_color;
 		hsv_tabs.border_color = rgb_tabs.border_color;
 		if (!st->mode) {
-			rgb_tabs.sel_i = st->which_fixed;
+			rgb_tabs.sel_i = st->which_s;
 			hsv_tabs.sel_i = -1;
 		} else {
 			rgb_tabs.sel_i = -1;
-			hsv_tabs.sel_i = st->which_fixed;
+			hsv_tabs.sel_i = st->which_s;
 		}
 		rgb_tabs.x = top_tabs_x;
 		rgb_tabs.y = top_tabs_y;
@@ -1249,8 +1255,8 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		rgb_tabs.h = top_tabs_h;
 		if (tab_select(&rgb_tabs, input)) {
 			st->mode = 0;
-			st->which_fixed = rgb_tabs.sel_i;
-			update_color_or_mode(st, st->mode, st->which_fixed, ci);
+			st->which_s = rgb_tabs.sel_i;
+			update_color_or_mode(st, st->mode, st->which_s, ci);
 		}
 		hsv_tabs.x = main_button_x;
 		hsv_tabs.y = main_button_y + main_button_h;
@@ -1258,8 +1264,8 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		hsv_tabs.h = top_tabs_h;
 		if (tab_select(&hsv_tabs, input)) {
 			st->mode = 1;
-			st->which_fixed = hsv_tabs.sel_i;
-			update_color_or_mode(st, st->mode, st->which_fixed, ci);
+			st->which_s = hsv_tabs.sel_i;
+			update_color_or_mode(st, st->mode, st->which_s, ci);
 		}
 	}
 	// main button
@@ -1274,13 +1280,13 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 			main_button_h, 1*scale, buttons_border_color);
 		i32 main_button_text_x = main_button_x + main_button_w/2.0f-st->large_char_width/2.0f;
 		i32 main_button_text_y = main_button_y + main_button_h/2.0f+FONT_LARGE_PX*CENTER_EM;
-		add_text(st->main_scene, st->font, FONT_LARGE_PX, color_strings[st->mode][st->which_fixed],
+		add_text(st->main_scene, st->font, FONT_LARGE_PX, color_strings[st->mode][st->which_s],
 			main_button_text_x, main_button_text_y, WHITE);
-		if (CheckCollisionPointRec(pos, (Rectangle) { main_button_x, main_button_y, main_button_w,
+		if (point_in_rect(pos, (Rectangle) { main_button_x, main_button_y, main_button_w,
 			ind_tabs_y-main_button_y})) {
 			if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
-				st->which_fixed = (st->which_fixed + 1) % 3;
-				update_color_or_mode(st, st->mode, st->which_fixed, ci);
+				st->which_s = (st->which_s + 1) % 3;
+				update_color_or_mode(st, st->mode, st->which_s, ci);
 				main_button_hover_v = 0;
 			}
 			if (!input->mouse_down[AU_MOUSE_BUTTON_LEFT]) {
@@ -1297,7 +1303,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 	int val_slider_y = main_button_y + main_button_h / 2.0f;
 	int val_slider_w = grad_square_x_end - val_slider_x;
 	int val_slider_h = 60*scale;
-	int val_slider_offset = roundf(val_slider_w * ( (float) st->fixed_value ));
+	int val_slider_offset = roundf(val_slider_w * ( (float) st->s_value ));
 	{
 		int bar_h = 26*scale;
 		int circle_r = 18*scale;
@@ -1306,7 +1312,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		Vector4 slider_up_color;
 		float xv = st->x_value;
 		float yv = st->y_value;
-		switch (st->which_fixed) {
+		switch (st->which_s) {
 		case 0: {
 			slider_down_color = (Vector4) { 0.0f, xv, yv, 1.0f };
 			slider_up_color = (Vector4) { 1.0f, xv, yv, 1.0f };
@@ -1338,14 +1344,14 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		add_circle_ex(st->main_scene, val_slider_x + val_slider_offset, val_slider_y, circle_r,
 			30, fixed_indication_color);
 		if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT] || st->val_slider_dragging) {
-			if (!st->val_slider_dragging && CheckCollisionPointRec(pos,
+			if (!st->val_slider_dragging && point_in_rect(pos,
 				(Rectangle) { val_slider_x - circle_r, val_slider_y-val_slider_h/2.0f,
 					val_slider_w+2*circle_r, val_slider_h } )) {
 				st->val_slider_dragging = true;
 			}
 			if (st->val_slider_dragging) {
 				val_slider_offset = MIN(val_slider_w, MAX(0, pos.x - val_slider_x));
-				st->fixed_value = MIN(MAX((float) val_slider_offset / val_slider_w, 0), 1.0);
+				st->s_value = MIN(MAX((float) val_slider_offset / val_slider_w, 0), 1.0);
 				// xx check if we actually changed the color?
 				st->from_alternate_value = false;
 				if (input->pointer_dx) {
@@ -1355,91 +1361,93 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		}
 	}
 
-	// rgb number selectors
-	bool rgb_num_select_changed = false;
 	int rgb_select_w = 6*(st->medium_char_width + 1.5*scale);
 	int r_select_x = (st->main_scene->w - st->medium_label_width)/2.0f;
 	int r_select_y = val_slider_y + 90*scale;
-	static Number_Select r_num_select;
-	r_num_select.value = cur_color.x * 255.0f;
-	if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt, r_select_x,
-		r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, input, &ci)) {
-		rgb_num_select_changed = true;
-	}
-	static Number_Select g_num_select;
-	g_num_select.value = cur_color.y * 255.0f;
-	if (number_select_immargs(&g_num_select, "g:%d ", 0, 255, false, st, anim_vdt,
-		r_num_select.x+r_num_select.w, r_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
-		input, &ci)) {
-		rgb_num_select_changed = true;
-	}
-	static Number_Select b_num_select;
-	b_num_select.value = cur_color.z * 255.0f;
-	if (number_select_immargs(&b_num_select, "b:%d ", 0, 255, false, st, anim_vdt,
-		g_num_select.x+g_num_select.w, g_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
-		input, &ci)) {
-		rgb_num_select_changed = true;
-	}
-	if (rgb_num_select_changed) {
-		Vector4 new_rgb = { r_num_select.value / 255.0f,  g_num_select.value / 255.0f,
-			b_num_select.value / 255.0f, 1.0f };
-		if (st->mode == 1) {
-			st->from_alternate_value = true;
-			st->alternate_value = (Vector3) { new_rgb.x, new_rgb.y, new_rgb.z };
-		} else if (st->from_alternate_value) {
-			st->from_alternate_value = false;
+	{
+		// rgb number selectors
+		bool rgb_num_select_changed = false;
+		static Number_Select r_num_select;
+		r_num_select.value = cur_color.x * 255.0f;
+		if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt, r_select_x,
+			r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, input, &ci)) {
+			rgb_num_select_changed = true;
 		}
-		Vector4 new_hsv = rgb_to_hsv(new_rgb);
-		struct color_info new_ci = { new_rgb, new_hsv };
-		update_color_or_mode(st, st->mode, st->which_fixed, new_ci);
-	}
-	// hex label
-	char value[40];
-	sprintf(value, "hex:#%02x%02x%02x", (int)(cur_color.x*255.0f), (int)(cur_color.y*255.0f),
-		(int)(cur_color.z*255.0f));
-	int hex_label_x = b_num_select.x + b_num_select.w;
-	int hex_label_y = r_num_select.y + r_num_select.h/2.0f + FONT_MEDIUM_PX*CENTER_EM;
-	add_text(st->main_scene, st->font, FONT_MEDIUM_PX, value, hex_label_x, hex_label_y,
-		st->text_color);
-	// hsv number selectors
-	bool hsv_num_select_changed = false;
-	int hsv_select_w = 7*(st->medium_char_width + 1.5*scale);
-	static Number_Select h_num_select;
-	h_num_select.value = cur_hsv.x * 360.0f;
-	if (number_select_immargs(&h_num_select, "h:%d\xc2\xb0", 0, 359, true, st, anim_vdt,
-		r_num_select.x, r_num_select.y + 35*scale, hsv_select_w, 30*scale, 800.0f/360.0f,
-		input, &ci)) {
-		hsv_num_select_changed = true;
-	}
-	static Number_Select s_num_select;
-	s_num_select.value = cur_hsv.y * 100.0f;
-	if (number_select_immargs(&s_num_select, "s:%d%% ", 0, 100, false, st, anim_vdt,
-		h_num_select.x+h_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
-		input, &ci)) {
-		hsv_num_select_changed = true;
-	}
-	static Number_Select v_num_select;
-	v_num_select.value = cur_hsv.z * 100.0f;
-	if (number_select_immargs(&v_num_select, "v:%d%% ", 0, 100, false, st, anim_vdt,
-		s_num_select.x+s_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
-		input, &ci)) {
-		hsv_num_select_changed = true;
-	}
-	if (hsv_num_select_changed) {
-		Vector4 new_hsv = { h_num_select.value / 360.0f, s_num_select.value / 100.0f,
-			v_num_select.value / 100.0f, 1.0f };
-		if (st->mode == 0) {
-			st->from_alternate_value = true;
-			st->alternate_value = (Vector3) { new_hsv.x, new_hsv.y, new_hsv.z };
-		} else if (st->from_alternate_value) {
-			st->from_alternate_value = false;
+		static Number_Select g_num_select;
+		g_num_select.value = cur_color.y * 255.0f;
+		if (number_select_immargs(&g_num_select, "g:%d ", 0, 255, false, st, anim_vdt,
+			r_num_select.x+r_num_select.w, r_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
+			input, &ci)) {
+			rgb_num_select_changed = true;
 		}
-		Vector4 new_rgb = hsv_to_rgb(new_hsv);
-		struct color_info new_ci = { new_rgb, new_hsv };
-		update_color_or_mode(st, st->mode, st->which_fixed, new_ci);
-	}
-	if (rgb_num_select_changed && hsv_num_select_changed) {
-		printf("rgb and hsv selects changed\n");
+		static Number_Select b_num_select;
+		b_num_select.value = cur_color.z * 255.0f;
+		if (number_select_immargs(&b_num_select, "b:%d ", 0, 255, false, st, anim_vdt,
+			g_num_select.x+g_num_select.w, g_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
+			input, &ci)) {
+			rgb_num_select_changed = true;
+		}
+		if (rgb_num_select_changed) {
+			Vector4 new_rgb = { r_num_select.value / 255.0f,  g_num_select.value / 255.0f,
+				b_num_select.value / 255.0f, 1.0f };
+			if (st->mode == 1) {
+				st->from_alternate_value = true;
+				st->alternate_value = (Vector3) { new_rgb.x, new_rgb.y, new_rgb.z };
+			} else if (st->from_alternate_value) {
+				st->from_alternate_value = false;
+			}
+			Vector4 new_hsv = rgb_to_hsv(new_rgb);
+			struct color_info new_ci = { new_rgb, new_hsv };
+			update_color_or_mode(st, st->mode, st->which_s, new_ci);
+		}
+		// hex label
+		char value[40];
+		sprintf(value, "hex:#%02x%02x%02x", (int)(cur_color.x*255.0f), (int)(cur_color.y*255.0f),
+			(int)(cur_color.z*255.0f));
+		int hex_label_x = b_num_select.x + b_num_select.w;
+		int hex_label_y = r_num_select.y + r_num_select.h/2.0f + FONT_MEDIUM_PX*CENTER_EM;
+		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, value, hex_label_x, hex_label_y,
+			st->text_color);
+		// hsv number selectors
+		bool hsv_num_select_changed = false;
+		int hsv_select_w = 7*(st->medium_char_width + 1.5*scale);
+		static Number_Select h_num_select;
+		h_num_select.value = cur_hsv.x * 360.0f;
+		if (number_select_immargs(&h_num_select, "h:%d\xc2\xb0", 0, 359, true, st, anim_vdt,
+			r_num_select.x, r_num_select.y + 35*scale, hsv_select_w, 30*scale, 800.0f/360.0f,
+			input, &ci)) {
+			hsv_num_select_changed = true;
+		}
+		static Number_Select s_num_select;
+		s_num_select.value = cur_hsv.y * 100.0f;
+		if (number_select_immargs(&s_num_select, "s:%d%% ", 0, 100, false, st, anim_vdt,
+			h_num_select.x+h_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
+			input, &ci)) {
+			hsv_num_select_changed = true;
+		}
+		static Number_Select v_num_select;
+		v_num_select.value = cur_hsv.z * 100.0f;
+		if (number_select_immargs(&v_num_select, "v:%d%% ", 0, 100, false, st, anim_vdt,
+			s_num_select.x+s_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
+			input, &ci)) {
+			hsv_num_select_changed = true;
+		}
+		if (hsv_num_select_changed) {
+			Vector4 new_hsv = { h_num_select.value / 360.0f, s_num_select.value / 100.0f,
+				v_num_select.value / 100.0f, 1.0f };
+			if (st->mode == 0) {
+				st->from_alternate_value = true;
+				st->alternate_value = (Vector3) { new_hsv.x, new_hsv.y, new_hsv.z };
+			} else if (st->from_alternate_value) {
+				st->from_alternate_value = false;
+			}
+			Vector4 new_rgb = hsv_to_rgb(new_hsv);
+			struct color_info new_ci = { new_rgb, new_hsv };
+			update_color_or_mode(st, st->mode, st->which_s, new_ci);
+		}
+		if (rgb_num_select_changed && hsv_num_select_changed) {
+			printf("rgb and hsv selects changed\n");
+		}
 	}
 
 	// write to file
@@ -1524,8 +1532,8 @@ int main(int argc, char *argv[])
 	struct state *st = (struct state *) aalloc(&app_arena, sizeof(struct state));
 	st->arena = &app_arena;
 	st->mode = 0;
-	st->which_fixed = 0;
-	st->fixed_value = 0.0f;
+	st->which_s = 0;
+	st->s_value = 0.0f;
 	st->x_value = 0;
 	st->y_value = 0;
 	st->square_dragging = false;
@@ -1575,7 +1583,7 @@ int main(int argc, char *argv[])
 		printf("Outfile: %s\n", st->outfile.path);
 	}
 
-	Window *window = window_create(&app_arena, 680, 860, "Quickpick", true);
+	Window *window = window_create(&app_arena, 680, 860, "QuickPick", true);
 	st->window = window;
 	st->main_scene = &window->sc;
 	window->udata = st;
@@ -1637,7 +1645,7 @@ int main(int argc, char *argv[])
 			struct color_info ci;
 			ci.rgb = start_color;
 			ci.hsv = rgb_to_hsv(start_color);
-			update_color_or_mode(st, st->mode, st->which_fixed, ci);
+			update_color_or_mode(st, st->mode, st->which_s, ci);
 		} else {
 			// since we failed to read, we probably shouldn't write
 			fprintf(stderr, "[QUICKPICK WARNING] Failed to find a valid rrggbb(or #rrggbb) color at"
