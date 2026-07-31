@@ -2,7 +2,7 @@
 
 QuickPick is an RGB and HSV color picker that can live-edit color values in text files.
 
-![screenshot](quickpick.png)
+<img src="quickpick.png" alt="screenshot" width="600">
 
 Usage
 -----
