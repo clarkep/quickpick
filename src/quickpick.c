@@ -407,35 +407,35 @@ struct color_info {
 	Vector4 hsv;
 };
 
-void update_color_or_mode(struct state *st, int mode, int fixed, struct color_info ci)
+// Update s_value, x_value and y_value based on current mode, which_s, and a color value.
+void update_axis_values(struct state *st, int mode, int which_s, struct color_info ci)
 {
-	Vector4 cur_rgb = ci.rgb;
-	Vector4 cur_hsv = ci.hsv;
-
-	if (st->mode) {
-		if (fixed == 0) {
+	if (st->mode == 1) {
+		Vector4 cur_hsv = ci.hsv;
+		if (which_s == 0) {
 			st->s_value = cur_hsv.x;
 			st->x_value = cur_hsv.y;
 			st->y_value = cur_hsv.z;
-		} else if (fixed == 1) {
+		} else if (which_s == 1) {
 			st->s_value = cur_hsv.y;
 			st->x_value = cur_hsv.x;
 			st->y_value = cur_hsv.z;
-		} else if (fixed == 2) {
+		} else if (which_s == 2) {
 			st->s_value = cur_hsv.z;
 			st->x_value = cur_hsv.x;
 			st->y_value = cur_hsv.y;
 		}
 	} else {
-		if (fixed == 0) {
+		Vector4 cur_rgb = ci.rgb;
+		if (which_s == 0) {
 			st->s_value = cur_rgb.x;
 			st->x_value = cur_rgb.y;
 			st->y_value = cur_rgb.z;
-		} else if (fixed == 1) {
+		} else if (which_s == 1) {
 			st->s_value = cur_rgb.y;
 			st->x_value = cur_rgb.z;
 			st->y_value = cur_rgb.x;
-		} else if (fixed == 2) {
+		} else if (which_s == 2) {
 			st->s_value = cur_rgb.z;
 			st->x_value = cur_rgb.x;
 			st->y_value = cur_rgb.y;
@@ -481,6 +481,7 @@ struct color_info current_color(struct state *st)
 				res.hsv = (Vector4) { v1, v2, v3, 1.0f };
 			break;
 			case 1:
+				// Note the difference from above. When slider is sat., x is hue, and y is value.
 				res.hsv = (Vector4) { v2, v1, v3, 1.0f };
 			break;
 			case 2:
@@ -492,7 +493,7 @@ struct color_info current_color(struct state *st)
 		res.rgb = hsv_to_rgb(res.hsv);
 	}
 	if (st->from_alternate_value) {
-		update_color_or_mode(st, st->mode, st->which_s, res);
+		update_axis_values(st, st->mode, st->which_s, res);
 	}
 	return res;
 }
@@ -1246,7 +1247,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		if (tab_select(&rgb_tabs, input)) {
 			st->mode = 0;
 			st->which_s = rgb_tabs.sel_i;
-			update_color_or_mode(st, st->mode, st->which_s, ci);
+			update_axis_values(st, st->mode, st->which_s, ci);
 		}
 		hsv_tabs.x = main_button_x;
 		hsv_tabs.y = main_button_y + main_button_h;
@@ -1255,7 +1256,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		if (tab_select(&hsv_tabs, input)) {
 			st->mode = 1;
 			st->which_s = hsv_tabs.sel_i;
-			update_color_or_mode(st, st->mode, st->which_s, ci);
+			update_axis_values(st, st->mode, st->which_s, ci);
 		}
 	}
 	// main button
@@ -1276,7 +1277,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 			ind_tabs_y-main_button_y})) {
 			if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
 				st->which_s = (st->which_s + 1) % 3;
-				update_color_or_mode(st, st->mode, st->which_s, ci);
+				update_axis_values(st, st->mode, st->which_s, ci);
 				main_button_hover_v = 0;
 			}
 			if (!input->mouse_down[AU_MOUSE_BUTTON_LEFT]) {
@@ -1388,7 +1389,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 			}
 			Vector4 new_hsv = rgb_to_hsv(new_rgb);
 			struct color_info new_ci = { new_rgb, new_hsv };
-			update_color_or_mode(st, st->mode, st->which_s, new_ci);
+			update_axis_values(st, st->mode, st->which_s, new_ci);
 		}
 		// hex label
 		char value[40];
@@ -1433,7 +1434,7 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 			}
 			Vector4 new_rgb = hsv_to_rgb(new_hsv);
 			struct color_info new_ci = { new_rgb, new_hsv };
-			update_color_or_mode(st, st->mode, st->which_s, new_ci);
+			update_axis_values(st, st->mode, st->which_s, new_ci);
 		}
 		if (rgb_num_select_changed && hsv_num_select_changed) {
 			printf("rgb and hsv selects changed\n");
@@ -1635,7 +1636,7 @@ int main(int argc, char *argv[])
 			struct color_info ci;
 			ci.rgb = start_color;
 			ci.hsv = rgb_to_hsv(start_color);
-			update_color_or_mode(st, st->mode, st->which_s, ci);
+			update_axis_values(st, st->mode, st->which_s, ci);
 		} else {
 			// since we failed to read, we probably shouldn't write
 			fprintf(stderr, "[QUICKPICK WARNING] Failed to find a valid rrggbb(or #rrggbb) color at"
