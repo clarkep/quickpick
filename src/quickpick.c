@@ -564,45 +564,45 @@ void add_gradient_rectangle_rounded_ends(Scene *scene, float x, float y, float w
 	add_rounded_quad(scene, right_corners, right_rounded, radius, corner_colors[1]);
 }
 
-void draw_gradient_square_rgb(State *st, int x, int y, int size, int which_fixed, float fixed_val)
+void draw_gradient_square_rgb(State *st, int x, int y, int size, int which_s, float s_value)
 {
 	Vector4 corner_cols[4];
 	for (int i=0; i<2; i++) {
 		for (int j=0; j<2; j++) {
 			float c1 = j ? 1.0f : 0.0f;
 			float c2 = i ? 1.0f : 0.0f;
-			float f = fixed_val;
-			if (which_fixed == 0) {
-				corner_cols[(1-i)*2+j] = (Vector4) { f, c1, c2, 1.0f };
-			} else if (which_fixed == 1) { // green
-				corner_cols[(1-i)*2+j] = (Vector4) { c2, f, c1, 1.0f };
-			} else if (which_fixed == 2) { // blue
-				corner_cols[(1-i)*2+j] = (Vector4) { c1, c2, f, 1.0f };
+			float s = s_value;
+			if (which_s == 0) {
+				corner_cols[(1-i)*2+j] = (Vector4) { s, c1, c2, 1.0f };
+			} else if (which_s == 1) { // green
+				corner_cols[(1-i)*2+j] = (Vector4) { c2, s, c1, 1.0f };
+			} else if (which_s == 2) { // blue
+				corner_cols[(1-i)*2+j] = (Vector4) { c1, c2, s, 1.0f };
 			}
 		}
 	}
 	add_gradient_rectangle(st->main_scene, x, y, size, size, corner_cols);
 }
 
-void draw_gradient_square_hsv(struct state *st, int x, int y, int size, int which_fixed,
-	float fixed_val)
+void draw_gradient_square_hsv(struct state *st, int x, int y, int size, int which_s,
+	float s_value)
 {
 	Vector4 corner_cols[4];
 	for (int i=0; i<2; i++) {
 		for (int j=0; j<2; j++) {
 			float c1 = j ? 1.0f : 0.0f;
 			float c2 = i ? 1.0f : 0.0f;
-			if (which_fixed == 0) { // hue
-				corner_cols[(1-i)*2+j] =  (Vector4) { fixed_val, c1, c2, 1.0f };
-			} else if (which_fixed == 1) { // saturation
-				corner_cols[(1-i)*2+j] = (Vector4) { c1, fixed_val, c2, 1.0f };
+			if (which_s == 0) { // hue
+				corner_cols[(1-i)*2+j] =  (Vector4) { s_value, c1, c2, 1.0f };
+			} else if (which_s == 1) { // saturation
+				corner_cols[(1-i)*2+j] = (Vector4) { c1, s_value, c2, 1.0f };
 			}
 		}
 	}
 	add_gradient_rectangle(st->hsv_grad_scene, x, y, size, size, corner_cols);
 }
 
-void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct state *st)
+void draw_gradient_circle_and_axes(int x, int y, int r, float s_value, struct state *st)
 {
     {
     	Scene *scene = st->hsv_grad_scene;
@@ -619,37 +619,26 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float fixed_val, struct 
 	    for (int i=0; i<360; i++) {
 	    	float angle1 = 2*F_PI*i/360.0f;
 	    	float angle2 = 2*F_PI*(i+1)/360.0f;
+	    	Vector2 positions[3] = {
+	    		{ xf + rf*cos(angle1), yf + rf*sin(angle1) },
+	    		{ xf + rf*cos(angle2), yf + rf*sin(angle2) },
+	    		{ xf, yf }
+	    	};
+	    	float hues[3] = { i / 360.0f, (i+1) / 360.0f, i / 360.0f };
+	    	float saturations[3] = { 1.0f, 1.0f, 0.0f };
 	    	i32 offset = 3*i*vertex_size;
-	    	data[offset] = xf + rf*cos(angle1);
-	    	data[offset+1] = yf + rf*sin(angle1);
-	    	data[offset+2] = 0.0f;
-	    	data[offset+3] = i / 360.0f;
-	    	data[offset+4] = 1.0f;
-	    	data[offset+5] = fixed_val;
-	    	data[offset+6] = 1.0f;
-	    	data[offset+7] = 0.0f;
-	    	data[offset+8] = 0.0f;
-	    	data[offset+9] = 0.0f;
-	    	data[offset+vertex_size] = xf + rf*cos(angle2);
-	    	data[offset+vertex_size+1] = yf + rf*sin(angle2);
-	    	data[offset+vertex_size+2] = 0.0f;
-	    	data[offset+vertex_size+3] = (i+1) / 360.0f;
-	    	data[offset+vertex_size+4] = 1.0f;
-	    	data[offset+vertex_size+5] = fixed_val;
-	    	data[offset+vertex_size+6] = 1.0f;
-	    	data[offset+vertex_size+7] = 0.0f;
-	    	data[offset+vertex_size+8] = 0.0f;
-	    	data[offset+vertex_size+9] = -1.0f;
-	    	data[offset+2*vertex_size] = xf;
-	    	data[offset+2*vertex_size+1] = yf;
-	    	data[offset+2*vertex_size+2] = 0.0f;
-	    	data[offset+2*vertex_size+3] = i / 360.0f;
-	    	data[offset+2*vertex_size+4] = 0.0f;
-	    	data[offset+2*vertex_size+5] = fixed_val;
-	    	data[offset+2*vertex_size+6] = 1.0f;
-	    	data[offset+2*vertex_size+7] = 0.0f;
-	    	data[offset+2*vertex_size+8] = 0.0f;
-	    	data[offset+2*vertex_size+9] = -1.0f;
+	    	for (i32 j=0; j<3; j++) {
+		    	data[offset+j*vertex_size] = positions[j].x;
+		    	data[offset+j*vertex_size+1] = positions[j].y;
+		    	data[offset+j*vertex_size+2] = 0.0f;
+		    	data[offset+j*vertex_size+3] = hues[j];
+		    	data[offset+j*vertex_size+4] = saturations[j];
+		    	data[offset+j*vertex_size+5] = s_value;
+		    	data[offset+j*vertex_size+6] = 1.0f;
+		    	data[offset+j*vertex_size+7] = 0.0f;
+		    	data[offset+j*vertex_size+8] = 0.0f;
+		    	data[offset+j*vertex_size+9] = -1.0f;
+	    	}
 	    }
 		vertices->length += max_verts*vertex_size;
 	}
