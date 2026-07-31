@@ -831,11 +831,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 	Vector4 rgb = ci->rgb;
 	float dpi = st->window->scale;
 	int new_value = self->value;
-	/*
-	// if changing font, may need to measure.
-	self->w = (st->medium_char_width + 1.5*dpi) * n_chars;
-	self->h = 30*dpi;
-	*/
+	// Draw the background highlight
 	Vector4 hl_color;
 	float lum = luminance(rgb.x, rgb.y, rgb.z);
 	float cutoff = 0.179f;
@@ -860,7 +856,9 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 	char text[21];
 	memset(text, 0, 21);
 	if (self->input_active) {
-		// Color only the number(%d) in the string fmt(there must be one and only one %d)
+		// Manually format self->fmt into 'text', and draw it. self->fmt must contain one and only one
+		// %d, and can also contain %%. The formatted number is drawn in a different shade than the
+		// rest of 'text'.
 		int text_i = 0;
 		int fmt_i = 0;
 		int d_i;
@@ -890,6 +888,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 		text[d_i] = c;
 		x += d_i*(st->medium_char_width + 1.5*dpi);
 		c = text[d_i + d_chars];
+		text[d_i + d_chars] = '\0';
 		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, &text[d_i], x, text_y,
 			st->text_color.x < 0.5f ? hex2color(0x303030ff) : hex2color(0xd8d8d8ff));
 		text[d_i + d_chars] = c;
@@ -904,23 +903,26 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 	}
 	Vector2 pos = { input->pointer_x, input->pointer_y };
 	bool hit = point_in_rect(pos, (Rectangle) { self->x, self->y, self->w, self->h });
-	// xx can this logic be simplified?
+	// Use hoverered highlighting for actual hovers and while dragging
 	if ((hit && !input->mouse_down[AU_MOUSE_BUTTON_LEFT]) || self->dragging) {
 		hovered = true;
 	}
-	// xx self->dragging here ensures that the click that's ending now started on the widget, but
-	// not that it never left.
+	// A click ending inside our borders means we are selected.
 	if (hit && input->mouse_released[AU_MOUSE_BUTTON_LEFT] && self->clicking) {
 		self->selected = true;
 	}
+	// A mouse press outside our borders means we are unselected.
 	if (!hit && input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
 		self->selected = false;
 		self->input_active = false;
 	}
+	// In-progress clicks cannot leave our borders.
 	if (!hit) {
 		self->clicking = false;
 	}
+	// Handle keyboard input while selected.
 	if (self->selected) {
+		// Set animating conservatively on all the keypresses we handle.
 		if (input->text_entered->length > 0 || input->key_pressed[AU_KEY_BACKSPACE]
 			|| input->key_pressed[AU_KEY_ENTER] || input->key_pressed[AU_KEY_ESCAPE]) {
 			st->animating = true;
@@ -932,8 +934,6 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 				key_num = key-'0';
 			}
 			if (!self->input_active && key_num >= 0) {
-				// This breaks input if self->min > 9, but that doesn't apply to us and would require
-				// some special logic.
 				if (key_num >= self->min && key_num <= self->max) {
 					self->input_active = true;
 					self->input_n = key_num;
@@ -960,6 +960,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 			self->input_active = false;
 		}
 	}
+	// The start conditions for both clicks and drags are the same: a mouse press within our borders.
 	if (hit && input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
 		self->dragging = true;
 		self->clicking = true;
