@@ -27,6 +27,7 @@ License: MIT(see LICENSE)
 #include "au_containers.h"
 #include "au_window.h"
 #include "au_window_sdl.h"
+#include "au_platform.h"
 #include "au_draw.h"
 #include "au_string.h"
 
@@ -1587,21 +1588,28 @@ int main(int argc, char *argv[])
 
 	st->font = load_font_from_memory(st->main_scene, noto_sans_mono, noto_sans_mono_len);
 
-	// if (st->debug) {
-	// 	int msaa_buffers = 0, msaa_samples = 0, doublebuffer = 0;
-	// 	SDL_GL_GetAttribute(SDL_GL_MULTISAMPLEBUFFERS, &msaa_buffers);
-	// 	SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &msaa_samples);
-	// 	SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &doublebuffer);
-	// 	printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));
-	// 	printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
-	// 	printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
-	// 	printf("MSAA buffers: %d, samples: %d, doublebuffer: %d, swap interval: %d\n",
-	// 		msaa_buffers, msaa_samples, doublebuffer, SDL_GL_GetSwapInterval());
-	// 	SDL_DisplayMode mode;
-	// 	if (SDL_GetCurrentDisplayMode(0, &mode) == 0) {
-	// 		printf("Display: %dx%d @ %d Hz\n", mode.w, mode.h, mode.refresh_rate);
-	// 	}
-	// }
+	if (st->debug) {
+		int msaa_buffers = 0, msaa_samples = 0, doublebuffer = 0;
+		SDL_GL_GetAttribute(SDL_GL_MULTISAMPLEBUFFERS, &msaa_buffers);
+		SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &msaa_samples);
+		SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &doublebuffer);
+		fprintf(stderr, "GL_VENDOR: %s\n", glGetString(GL_VENDOR));
+		fprintf(stderr, "GL_RENDERER: %s\n", glGetString(GL_RENDERER));
+		fprintf(stderr, "GL_VERSION: %s\n", glGetString(GL_VERSION));
+		int interval;
+		if (!SDL_GL_GetSwapInterval(&interval)) {
+			fprintf(stderr, "%s\n", SDL_GetError());
+		}
+		fprintf(stderr, "MSAA buffers: %d, samples: %d, doublebuffer: %d, swap interval: %d\n",
+			msaa_buffers, msaa_samples, doublebuffer, interval);
+		SDL_Window *sdl_window = ((AU_SDL_Window *) window)->sdl_window;
+		const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(sdl_window));
+		if (mode) {
+			fprintf(stderr, "Display: %dx%d @ %f Hz\n", mode->w, mode->h, mode->refresh_rate);
+		} else {
+			fprintf(stderr, "%s\n", SDL_GetError());
+		}
+	}
 
     // The charset for our small font includes the default ASCII characters, and anything in the
     // outfile name which will be displayed at the top of the window.
@@ -1679,8 +1687,8 @@ int main(int argc, char *argv[])
 
 	init_for_dpi(st, window->scale);
 
-	unsigned long long ticks_start = SDL_GetTicks();
-	unsigned long long frames = 0;
+	double frames_start = au_os_time_s();
+	u64 frames = 0;
 	while (!window->input->quit)
 	{
 		st->key_pressed = 0;
@@ -1696,11 +1704,10 @@ int main(int argc, char *argv[])
 
 		if (st->debug) {
 			frames++;
-			unsigned long long ticks_now = SDL_GetTicks();
-			const i32 print_frame_interval_secs = 2;
-			if (ticks_now >= ticks_start + print_frame_interval_secs*1000) {
-				printf("FPS: %.1f\n", frames / (float)print_frame_interval_secs);
-				ticks_start = ticks_now;
+			double now = au_os_time_s();
+			if (now >= frames_start + 2.0f) {
+				printf("FPS: %.1f\n", frames / (now - frames_start));
+				frames_start = now;
 				frames = 0;
 			}
 		}
