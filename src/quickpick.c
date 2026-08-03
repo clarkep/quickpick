@@ -37,9 +37,9 @@ License: MIT(see LICENSE)
 // #include "settings_24dp_material.h"
 
 #define WRITE_INTERVAL 0.5f
-#define FONT_SMALL_PX 17*dpi
-#define FONT_MEDIUM_PX 23*dpi
-#define FONT_LARGE_PX 35*dpi
+#define FONT_SMALL_PX 17*scale
+#define FONT_MEDIUM_PX 23*scale
+#define FONT_LARGE_PX 35*scale
 // For vertically centering text, fraction of the em box to place at the center of the region
 #define CENTER_EM 0.35f
 
@@ -83,6 +83,7 @@ typedef struct state {
 	// xx variable width fonts...
 	// Font text_font_medium;
 	// Font text_font_large;
+	float scale;
 	i32 font;
 	i32 text_font_small;
 	i32 text_font_medium;
@@ -645,34 +646,34 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float s_value, struct st
 		vertices->length += max_verts*vertex_size;
 	}
 	// tick marks
-	float dpi = st->window->scale;
+	float scale = st->scale;
 	for (float ang=0.0f; ang<360.0f; ang+=30.0) {
 		float dx = cosf(ang*2*F_PI/360.0f);
 		float dy = sinf(ang*2*F_PI/360.0f);
-		int length = 5*dpi;
+		int length = 5*scale;
 		Vector2 start = { x + r * dx, y + r * dy };
 		Vector2 end = { start.x + length * dx, start.y + length * dy };
-		add_line_ex(st->main_scene, start.x, start.y, end.x, end.y, 2.0*dpi, st->text_color);
+		add_line_ex(st->main_scene, start.x, start.y, end.x, end.y, 2.0*scale, st->text_color);
 	}
 	// s arrow
-	int arrow_len = 60*dpi;
-	float arrow_w = 2.0*dpi;
+	int arrow_len = 60*scale;
+	float arrow_w = 2.0*scale;
 	// int  = 4*dpi;
 	// arrowhead
-	float ah_len = 13*dpi;
+	float ah_len = 13*scale;
 	float ah_ang = (180-28)*2*F_PI/360.0f;
-	float ah_w = 2.0*dpi;
+	float ah_w = 2.0*scale;
 	Vector2 arrow_end = (Vector2) { x+r+arrow_len, y};
-	add_line_ex(st->main_scene, x+r+12*dpi, y, arrow_end.x, arrow_end.y, arrow_w, st->text_color);
+	add_line_ex(st->main_scene, x+r+12*scale, y, arrow_end.x, arrow_end.y, arrow_w, st->text_color);
 	Vector2 ah_left = { arrow_end.x + ah_len*cosf(ah_ang), arrow_end.y + ah_len*sinf(ah_ang)};
 	Vector2 ah_right = { arrow_end.x + ah_len*cosf(-ah_ang), arrow_end.y + ah_len*sinf(-ah_ang)};
 	add_line_ex(st->main_scene, arrow_end.x, arrow_end.y, ah_left.x, ah_left.y, ah_w, st->text_color);
 	add_line_ex(st->main_scene, arrow_end.x, arrow_end.y, ah_right.x, ah_right.y, ah_w, st->text_color);
-	add_text(st->main_scene, st->font, FONT_MEDIUM_PX, "S", arrow_end.x-16.0*dpi, arrow_end.y-20.0*dpi,
-		st->text_color);
+	add_text(st->main_scene, st->font, FONT_MEDIUM_PX, "S",
+		arrow_end.x-16.0*scale, arrow_end.y-20.0*scale, st->text_color);
 	// h arrow
-	float harr_d = 30*dpi;
-	float harr_w = 2*dpi;
+	float harr_d = 30*scale;
+	float harr_w = 2*scale;
 	float harr_ang1 = 12;
 	float harr_ang2 = 28;
 	Vector2 harr_end = { x + (r+harr_d+harr_w/2)*cosf(2*F_PI*harr_ang2/360.0f),
@@ -689,10 +690,10 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float s_value, struct st
 	add_line_ex(st->main_scene, harr_end.x, harr_end.y, h_ah_left.x, h_ah_left.y, ah_w, c3);
 	add_line_ex(st->main_scene, harr_end.x, harr_end.y, h_ah_right.x, h_ah_right.y, ah_w,
 		c3);
-	add_text(st->main_scene, st->text_font_medium, FONT_MEDIUM_PX, "H", harr_end.x+18*dpi, harr_end.y-2*dpi,
-		st->text_color);
+	add_text(st->main_scene, st->text_font_medium, FONT_MEDIUM_PX, "H", harr_end.x+18*scale,
+		harr_end.y-2*scale, st->text_color);
 	add_circle_arc_ex(st->main_scene, x, y, r+harr_d+harr_w/2, 2*F_PI*harr_ang1/360.0f,
-		2*F_PI*harr_ang2/360.0f, 30, 2.0f*dpi, st->text_color);
+		2*F_PI*harr_ang2/360.0f, 30, 2.0f*scale, st->text_color);
 }
 
 // TODO: parameter for 512 vs etc ?
@@ -715,7 +716,6 @@ void draw_axes(int x, int y, int w, int h, float scale, struct state *st)
 		x_label = color_strings[1][0];
 		y_label = color_strings[1][2];
 	}
-	float dpi = st->window->scale;
 	// x axis label
 	add_text(st->main_scene, st->font, FONT_MEDIUM_PX, x_label,
 			   x + 512*scale/2 - label_size, y + 512*scale + h, label_color);
@@ -736,7 +736,7 @@ void draw_axes(int x, int y, int w, int h, float scale, struct state *st)
 bool tab_select(Tab_Select *self, Input_State *input)
 {
 	State *st = self->st;
-	float dpi = st->window->scale;
+	float scale = st->scale;
 	Vector2 pos = { input->pointer_x, input->pointer_y };
 	int i = self->sel_i;
 	Vector4 *active = self->active_colors;
@@ -755,7 +755,7 @@ bool tab_select(Tab_Select *self, Input_State *input)
 	float tw = self->w / 3.0;
 	float rnd = 7.0f; // rounded rectangle roundness
 	float segs = 20; // rounded rectangle segments
-	float off = 0 * dpi;
+	float off = 0 * scale;
 	float y = self->top ? self->y : self->y - off;
 	// xx
 	float h = self->h + off;
@@ -783,7 +783,7 @@ bool tab_select(Tab_Select *self, Input_State *input)
 		last_x + (last_w - st->small_char_width)/2.0, text_y, text_color3);
 
 	add_rectangle(st->main_scene, x_mid, self->y, tw, self->h, color2);
-	add_rectangle_outline_ex(st->main_scene, x_mid, self->y, tw, self->h, 1*dpi,
+	add_rectangle_outline_ex(st->main_scene, x_mid, self->y, tw, self->h, 1*scale,
 		self->border_color);
 	text[0] = self->labels[1];
 	add_text(st->main_scene, st->font, FONT_SMALL_PX, text, x_mid + (tw - st->small_char_width)/2.0,
@@ -820,7 +820,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 {
 	State *st = self->st;
 	Vector4 rgb = ci->rgb;
-	float dpi = st->window->scale;
+	float scale = st->scale;
 	int new_value = self->value;
 	// Draw the background highlight
 	Vector4 hl_color;
@@ -842,7 +842,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 	bool hovered = false;
 	float rnd = 7.0f;
 	i32 segs = 15;
-	add_rounded_rectangle_ex(st->main_scene, self->x - 10*dpi, self->y, self->w, self->h,
+	add_rounded_rectangle_ex(st->main_scene, self->x - 10*scale, self->y, self->w, self->h,
 		rnd, segs, hl_color);
 	char text[21];
 	memset(text, 0, 21);
@@ -877,13 +877,13 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 		text[d_i] = '\0';
 		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, text, x, text_y, st->text_color);
 		text[d_i] = c;
-		x += d_i*(st->medium_char_width + 1.5*dpi);
+		x += d_i*(st->medium_char_width + 1.5*scale);
 		c = text[d_i + d_chars];
 		text[d_i + d_chars] = '\0';
 		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, &text[d_i], x, text_y,
 			st->text_color.x < 0.5f ? hex2color(0x303030ff) : hex2color(0xd8d8d8ff));
 		text[d_i + d_chars] = c;
-		x += d_chars * (st->medium_char_width + 1.5*dpi);
+		x += d_chars * (st->medium_char_width + 1.5*scale);
 		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, &text[d_i+d_chars], x, text_y,
 			st->text_color);
 	} else {
@@ -1015,6 +1015,16 @@ bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool 
 	return number_select(ns, input, ci);
 }
 
+void init_for_scale(struct state *st, float scale)
+{
+	st->small_char_width = measure_text_widthf(st->main_scene, st->font, FONT_SMALL_PX, "R");
+	st->medium_char_width = measure_text_widthf(st->main_scene, st->font, FONT_MEDIUM_PX, "R");
+	st->large_char_width = measure_text_widthf(st->main_scene, st->font, FONT_MEDIUM_PX, "R");
+
+	st->medium_label_width = measure_text_width(st->main_scene, st->font, FONT_MEDIUM_PX,
+		"r:255 g:255 b:255 hex:#ffffff");
+}
+
 void draw_ui_and_respond_input(struct state *st, Input_State *input)
 {
 	float anim_vdt = 0.2f;
@@ -1075,6 +1085,10 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		float scaledown_h = (st->main_scene->h / ui_h);
 		float scaledown_w = (st->main_scene->w / ui_w);
 		scale = dpi * MIN(scaledown_w, scaledown_h);
+	}
+	if (scale != st->scale) {
+		st->scale = scale;
+		init_for_scale(st, scale);
 	}
 
 	// output file indicator
@@ -1508,16 +1522,6 @@ void on_resize_watcher(struct window *window, i32 old_width, i32 old_height) {
 	commit_changes(window);
 }
 
-void init_for_dpi(struct state *st, float dpi)
-{
-	st->small_char_width = measure_text_widthf(st->main_scene, st->font, FONT_SMALL_PX, "R");
-	st->medium_char_width = measure_text_widthf(st->main_scene, st->font, FONT_MEDIUM_PX, "R");
-	st->large_char_width = measure_text_widthf(st->main_scene, st->font, FONT_MEDIUM_PX, "R");
-
-	st->medium_label_width = measure_text_width(st->main_scene, st->font, FONT_MEDIUM_PX,
-		"r:255 g:255 b:255 hex:#ffffff");
-}
-
 int main(int argc, char *argv[])
 {
 	arena_init(&app_arena);
@@ -1530,6 +1534,7 @@ int main(int argc, char *argv[])
 	st->y_value = 0;
 	st->square_dragging = false;
 	st->val_slider_dragging = false;
+	st->scale = 1.0f;
 	st->text_color = WHITE;
 	st->outfile.path = NULL;
 	st->outfile.offset = 0;
@@ -1685,18 +1690,12 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	init_for_dpi(st, window->scale);
-
 	double frames_start = au_os_time_s();
 	u64 frames = 0;
 	while (!window->input->quit)
 	{
 		st->key_pressed = 0;
 		st->mouse_was_down = st->mouse_down;
-
-		if (window->input->window_rescaled) {
-			init_for_dpi(st, window->scale);
-		}
 
 		draw_ui_and_respond_input(st, window->input);
 
