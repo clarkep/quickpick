@@ -1305,7 +1305,7 @@ TLSF_NO_ASAN void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size)
 				// could start to minsize. XX Or, we could just write our own unchecked_memcpy.
 				// const min_user_size = 1 << (tlsf_fls_sizet(minsize) - SL_INDEX_COUNT_LOG2);
 				// TODO: for now, to test:
-				const min_user_size = 0;
+				const size_t min_user_size = 0;
 				ASAN_UNPOISON_MEMORY_REGION((char *) ptr + min_user_size, minsize - min_user_size);
 #endif
 				memcpy(p, ptr, minsize);
@@ -1329,7 +1329,7 @@ TLSF_NO_ASAN void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size)
 			// earliest point where the redzone could start, given cursize.
 			// const min_user_size = 1 << (tlsf_fls_sizet(cursize) - SL_INDEX_COUNT_LOG2);
 			// TODO: For now, to test:
-			const min_user_size = 0;
+			const size_t min_user_size = 0;
 			ASAN_UNPOISON_MEMORY_REGION((char *) p + min_user_size, user_size - min_user_size);
 #endif
 		}
