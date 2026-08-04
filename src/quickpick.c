@@ -699,10 +699,10 @@ void draw_gradient_circle_and_axes(int x, int y, int r, float s_value, struct st
 // TODO: parameter for 512 vs etc ?
 void draw_axes(int x, int y, int w, int h, float scale, struct state *st)
 {
-	int tick_sep = 64*scale;
-	int tick_width = 2*scale;
-	int y_tick_len = w/4;
-	int x_tick_len = h/4;
+	float tick_sep = 512*scale / 8.0f;
+	float tick_width = 2*scale;
+	float y_tick_len = w/4.0f;
+	float x_tick_len = h/4.0f;
 	Vector4 tick_color = st->text_color;
 	int label_size = 30*scale;
 	Vector4 label_color = st->text_color;
@@ -723,13 +723,17 @@ void draw_axes(int x, int y, int w, int h, float scale, struct state *st)
 	add_text(st->main_scene, st->text_font_medium, FONT_MEDIUM_PX, y_label,
 			   x - h, y + 512*scale/2, label_color);
 	// x axis
-	for (int ix = x; ix < (x+512*scale); ix += tick_sep) {
-		add_rectangle(st->main_scene, ix, y+512*scale, tick_width, x_tick_len, tick_color);
+	float px = x;
+	for (int tick_i=0; tick_i<8; tick_i++) {
+		add_rectangle(st->main_scene, px, y+512*scale, tick_width, x_tick_len, tick_color);
+		px += tick_sep;
 	}
 	// y axis
-	for (int yi = 0; yi < (512*scale); yi += tick_sep) {
-		add_rectangle(st->main_scene, x-y_tick_len, y + 512*scale - yi - tick_width, y_tick_len,
+	float py=y + 512*scale;
+	for (int tick_i=0; tick_i<8; tick_i++) {
+		add_rectangle(st->main_scene, x-y_tick_len, py - tick_width, y_tick_len,
 			tick_width, tick_color);
+		py -= tick_sep;
 	}
 }
 
