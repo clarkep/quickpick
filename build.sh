@@ -1,5 +1,4 @@
 #!/bin/sh
-set -eu
 cd "$(dirname "$0")"
 
 CC=${CC:-gcc}
@@ -9,7 +8,7 @@ pkg-config --exists sdl3 freetype2 || {
     exit 1
 }
 
-${CC} -g ${CFLAGS:-} -o quickpick \
+${CC} ${CFLAGS:--O2} -o quickpick \
     src/quickpick.c \
     src/util/autil.c src/util/math.c src/util/string.c src/util/containers.c \
     src/util/window_sdl.c src/util/window_common.c src/util/draw_opengl.c \
