@@ -1619,14 +1619,6 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "%s\n", SDL_GetError());
 		}
 	}
-
-    // The charset for our small font includes the default ASCII characters, and anything in the
-    // outfile name which will be displayed at the top of the window.
-	u32 *small_charset = malloc((128 + st->outfile.shortened_path_len)*sizeof(u32));
-	u32 small_charset_n = 0;
-    for (i32 i=0x20; i<0x7f; i++) {
-        small_charset[small_charset_n++] = i;
-    }
     char *spath;
     size_t spath_len;
     // If we have an outfile, shorten its name for the outfile indicator convert it to utf-32, and
@@ -1679,7 +1671,6 @@ int main(int argc, char *argv[])
 		    	}
 		    	if (found)
 		    		continue;
-		    	small_charset[small_charset_n++] = c;
 		    }
 		    st->outfile.shortened_path_utf32 = codepoints;
 		    assertf(codepoints_len < INT32_MAX, NULL);
