@@ -590,7 +590,7 @@ Arena arena_copy(Arena *arena)
 static void initialize_toplevel_temp()
 {
 	bool ok = arena_init_at(&toplevel_temp_arena,
-		(void *) toplevel_temp_location, AU_DEFAULT_RESERVE_SIZE, 1 << 26,
+		(void *) toplevel_temp_location, AU_DEFAULT_RESERVE_SIZE, AU_DEFAULT_COMMIT_SIZE,
 		NULL, 0, 0, AU_ALLOC_STATIC, AU_EXPAND_POLICY_EXTEND_OR_CRASH);
 	if (!ok) {
 		errexit_unless(arena_init_static(&toplevel_temp_arena), "Could not initialize temp arenas.\n");
@@ -651,6 +651,9 @@ static void *arena_expand(Arena *arena, bool expand_dynamic, u64 expand_size) {
 		tlsf_t tlsf = (tlsf_t) arena->dyn_data;
 		void *try_expand_addr = expand_dynamic ? arena->dyn_end : arena->end;
 		errexit_unless(try_expand_addr, "Arena: cannot expand unitialized arena.\n");
+
+		errexit_unless(expand_size <= (1ULL << AU_MAX_COMMIT_LOG2), "Arena: could not commit "
+			"allocation above 2 ^ AU_MAX_COMMIT_LOG2\n");
 
 		bool ok = au_commit_memory(try_expand_addr, expand_size);
 		if (!ok) {

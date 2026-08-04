@@ -257,7 +257,7 @@ enum tlsf_private
 	** TODO: We can increase this to support larger sizes, at the expense
 	** of more overhead in the TLSF structure.
 	*/
-	FL_INDEX_MAX = 32,
+	FL_INDEX_MAX = AU_MAX_COMMIT_LOG2,
 #else
 	FL_INDEX_MAX = 30,
 #endif
@@ -597,7 +597,7 @@ TLSF_NO_ASAN static void remove_free_block(control_t* control, block_header_t* b
 	block_header_t* next = block->next_free;
 	tlsf_assert(prev && "prev_free field can not be null");
 	tlsf_assert(next && "next_free field can not be null");
-  	next->prev_free = prev;
+	next->prev_free = prev;
 	prev->next_free = next;
 
 	/* If this block is the head of the free list, set new head. */
@@ -1155,7 +1155,8 @@ void* tlsf_malloc(tlsf_t tlsf, size_t size)
 
 	void *ret = block_prepare_used(control, block, adjust);
 #ifdef TLSF_ASAN_ENABLED
-	ASAN_UNPOISON_MEMORY_REGION(ret, user_size);
+	if (ret)
+		ASAN_UNPOISON_MEMORY_REGION(ret, user_size);
 #endif
 	return ret;
 
@@ -1220,11 +1221,14 @@ TLSF_NO_ASAN void* tlsf_memalign(tlsf_t tlsf, size_t align, size_t size)
 		}
 	}
 
+	void *ret = block_prepare_used(control, block, adjust);
+
 #ifdef TLSF_ASAN_ENABLED
-	ASAN_UNPOISON_MEMORY_REGION(block_to_ptr(block), user_size);
+	if (ret)
+		ASAN_UNPOISON_MEMORY_REGION(block_to_ptr(block), user_size);
 #endif
 
-	return block_prepare_used(control, block, adjust);
+	return ret;
 }
 
 TLSF_NO_ASAN void tlsf_free(tlsf_t tlsf, void* ptr)
@@ -1287,6 +1291,11 @@ TLSF_NO_ASAN void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size)
 		const size_t combined = cursize + block_size(next) + block_header_overhead;
 		size_t adjust = adjust_request_size(size, ALIGN_SIZE);
 
+		/* adjust == 0 here means size exceeded block_size_max; without this check we'd
+		** fall into the trim path below and truncate the block to zero size. */
+		if (!adjust)
+			return 0;
+
 		tlsf_assert(!block_is_free(block) && "block already marked as free");
 
 		/*
@@ -1300,13 +1309,8 @@ TLSF_NO_ASAN void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size)
 			{
 				const size_t minsize = tlsf_min(cursize, size);
 #ifdef TLSF_ASAN_ENABLED
-				// minsize contains the redzone but we don't know exactly where it is, and
-				// memcpy always has asan enabled, so unpoison from the earliest point the redzone
-				// could start to minsize. XX Or, we could just write our own unchecked_memcpy.
-				// const min_user_size = 1 << (tlsf_fls_sizet(minsize) - SL_INDEX_COUNT_LOG2);
-				// TODO: for now, to test:
-				const size_t min_user_size = 0;
-				ASAN_UNPOISON_MEMORY_REGION((char *) ptr + min_user_size, minsize - min_user_size);
+				// memcpy always has asan enabled, so unpoison the block.
+				ASAN_UNPOISON_MEMORY_REGION((char *) ptr, minsize);
 #endif
 				memcpy(p, ptr, minsize);
 				tlsf_free(tlsf, ptr);
@@ -1325,12 +1329,9 @@ TLSF_NO_ASAN void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size)
 			block_trim_used(control, block, adjust);
 			p = ptr;
 #ifdef TLSF_ASAN_ENABLED
-			// Unpoison the old red zone and all of the newly added next block. Start from the
-			// earliest point where the redzone could start, given cursize.
-			// const min_user_size = 1 << (tlsf_fls_sizet(cursize) - SL_INDEX_COUNT_LOG2);
-			// TODO: For now, to test:
-			const size_t min_user_size = 0;
-			ASAN_UNPOISON_MEMORY_REGION((char *) p + min_user_size, user_size - min_user_size);
+			// Unpoison the old block and all of the newly added next block.
+			if (p)
+				ASAN_UNPOISON_MEMORY_REGION((char *) p, user_size);
 #endif
 		}
 	}

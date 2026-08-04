@@ -54,6 +54,8 @@ void errexit_unless(bool condition, const char *format, ...);
 
 /************************************** Memory management *****************************************/
 
+#define AU_MAX_COMMIT_LOG2 36
+
 #define AU_DEFAULT_RESERVE_SIZE (1ULL << 36)
 #define AU_DEFAULT_COMMIT_SIZE (1ULL << 20)
 
