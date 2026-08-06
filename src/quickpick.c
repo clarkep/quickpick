@@ -145,6 +145,8 @@ typedef struct number_select {
 	int x;
 	int y;
 	float drag_pixels_per_value;
+	struct number_select *next;
+	struct number_select *prev;
 	// "internal" state:
 	int w;
 	int h;
@@ -919,7 +921,9 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 	if (self->selected) {
 		// Set animating conservatively on all the keypresses we handle.
 		if (input->text_entered->length > 0 || input->key_pressed[AU_KEY_BACKSPACE]
-			|| input->key_pressed[AU_KEY_ENTER] || input->key_pressed[AU_KEY_ESCAPE]) {
+			|| input->key_pressed[AU_KEY_ENTER] || input->key_pressed[AU_KEY_ESCAPE]
+			|| input->key_pressed[AU_KEY_TAB] || input->key_pressed[AU_KEY_LEFT]
+			|| input->key_pressed[AU_KEY_RIGHT]) {
 			st->animating = true;
 		}
 		for (i64 i = 0; i<input->text_entered->length; i++) {
@@ -947,12 +951,42 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 				self->input_active = false;
 			}
 		}
-		if (self->input_active && input->key_pressed[AU_KEY_ESCAPE]) {
-			self->input_active = false;
+		if (input->key_pressed[AU_KEY_ESCAPE]) {
+			if (self->input_active) {
+				self->input_active = false;
+			} else {
+				self->selected = false;
+			}
 		}
 		if (self->input_active && input->key_pressed[AU_KEY_ENTER]) {
 			new_value = self->input_n;
 			self->input_active = false;
+		}
+		bool move_next = input->key_pressed[AU_KEY_RIGHT];
+		bool move_prev = input->key_pressed[AU_KEY_LEFT];
+		if (input->key_pressed[AU_KEY_TAB]) {
+			bool shift = input->key_down[AU_KEY_LEFT_SHIFT] || input->key_down[AU_KEY_RIGHT_SHIFT];
+			if (shift) {
+				move_prev = true;
+			} else {
+				move_next = true;
+			}
+		}
+		if (move_next || move_prev) {
+			Number_Select *target = move_prev ? self->prev : self->next;
+			if (target) {
+				// Consume these keypresses to keep the newly selected widget from immediately passing
+				// the selection along.
+				input->key_pressed[AU_KEY_TAB] = false;
+				input->key_pressed[AU_KEY_LEFT] = false;
+				input->key_pressed[AU_KEY_RIGHT] = false;
+				if (self->input_active) {
+					new_value = self->input_n;
+					self->input_active = false;
+				}
+				self->selected = false;
+				target->selected = true;
+			}
 		}
 	}
 	// The start conditions for both clicks and drags are the same: a mouse press within our borders.
@@ -1003,7 +1037,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 
 bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool wrap_around,
 	State *st, float anim_vdt, int x, int y, int w, int h, float drag_pixels_per_value,
-	Input_State *input, struct color_info *ci)
+	Input_State *input, struct color_info *ci, Number_Select *next, Number_Select *prev)
 {
 	ns->fmt = fmt;
 	ns->min = min;
@@ -1016,6 +1050,8 @@ bool number_select_immargs(Number_Select *ns, char *fmt, int min, int max, bool 
 	ns->w = w;
 	ns->h = h;
 	ns->drag_pixels_per_value = drag_pixels_per_value;
+	ns->next = next;
+	ns->prev = prev;
 	return number_select(ns, input, ci);
 }
 
@@ -1376,25 +1412,25 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 	int r_select_y = val_slider_y + 90*scale;
 	{
 		// rgb number selectors
+		static Number_Select r_num_select, g_num_select, b_num_select;
+		static Number_Select h_num_select, s_num_select, v_num_select;
 		bool rgb_num_select_changed = false;
-		static Number_Select r_num_select;
 		r_num_select.value = cur_color.x * 255.0f;
 		if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt, r_select_x,
-			r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, input, &ci)) {
+			r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, input, &ci,
+			&g_num_select, &v_num_select)) {
 			rgb_num_select_changed = true;
 		}
-		static Number_Select g_num_select;
 		g_num_select.value = cur_color.y * 255.0f;
 		if (number_select_immargs(&g_num_select, "g:%d ", 0, 255, false, st, anim_vdt,
 			r_num_select.x+r_num_select.w, r_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
-			input, &ci)) {
+			input, &ci, &b_num_select, &r_num_select)) {
 			rgb_num_select_changed = true;
 		}
-		static Number_Select b_num_select;
 		b_num_select.value = cur_color.z * 255.0f;
 		if (number_select_immargs(&b_num_select, "b:%d ", 0, 255, false, st, anim_vdt,
 			g_num_select.x+g_num_select.w, g_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
-			input, &ci)) {
+			input, &ci, &h_num_select, &g_num_select)) {
 			rgb_num_select_changed = true;
 		}
 		if (rgb_num_select_changed) {
@@ -1421,25 +1457,22 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		// hsv number selectors
 		bool hsv_num_select_changed = false;
 		int hsv_select_w = 7*(st->medium_char_width + 1.5*scale);
-		static Number_Select h_num_select;
 		h_num_select.value = cur_hsv.x * 360.0f;
 		if (number_select_immargs(&h_num_select, "h:%d\xc2\xb0", 0, 359, true, st, anim_vdt,
 			r_num_select.x, r_num_select.y + 35*scale, hsv_select_w, 30*scale, 800.0f/360.0f,
-			input, &ci)) {
+			input, &ci, &s_num_select, &b_num_select)) {
 			hsv_num_select_changed = true;
 		}
-		static Number_Select s_num_select;
 		s_num_select.value = cur_hsv.y * 100.0f;
 		if (number_select_immargs(&s_num_select, "s:%d%% ", 0, 100, false, st, anim_vdt,
 			h_num_select.x+h_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
-			input, &ci)) {
+			input, &ci, &v_num_select, &h_num_select)) {
 			hsv_num_select_changed = true;
 		}
-		static Number_Select v_num_select;
 		v_num_select.value = cur_hsv.z * 100.0f;
 		if (number_select_immargs(&v_num_select, "v:%d%% ", 0, 100, false, st, anim_vdt,
 			s_num_select.x+s_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
-			input, &ci)) {
+			input, &ci, &r_num_select, &s_num_select)) {
 			hsv_num_select_changed = true;
 		}
 		if (hsv_num_select_changed) {
