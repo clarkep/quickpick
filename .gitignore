@@ -1,0 +1,13 @@
+*.[oa]
+*~
+*.swp
+.DS_Store
+*.dSYM/
+quickpick
+*.exe
+*.pdb
+.vscode/
+.vs/
+build/
+CMakeCache.txt
+CMakeFiles/
