@@ -822,6 +822,12 @@ bool tab_select(Tab_Select *self, Input_State *input)
 	return updated;
 }
 
+// Wrap for number_select. span includes min *and* max
+int span_wrap(int x, int span_min, int span_max)
+{
+	return span_min + au_positive_modulo(x - span_min, span_max - span_min + 1);
+}
+
 bool number_select(Number_Select *self, Input_State *input, struct color_info *ci)
 {
 	State *st = self->st;
@@ -923,7 +929,8 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 		if (input->text_entered->length > 0 || input->key_pressed[AU_KEY_BACKSPACE]
 			|| input->key_pressed[AU_KEY_ENTER] || input->key_pressed[AU_KEY_ESCAPE]
 			|| input->key_pressed[AU_KEY_TAB] || input->key_pressed[AU_KEY_LEFT]
-			|| input->key_pressed[AU_KEY_RIGHT]) {
+			|| input->key_pressed[AU_KEY_RIGHT] || input->key_pressed[AU_KEY_UP]
+			|| input->key_pressed[AU_KEY_DOWN]) {
 			st->animating = true;
 		}
 		for (i64 i = 0; i<input->text_entered->length; i++) {
@@ -961,6 +968,23 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 		if (self->input_active && input->key_pressed[AU_KEY_ENTER]) {
 			new_value = self->input_n;
 			self->input_active = false;
+		}
+		int step = 0;
+		if (input->key_pressed[AU_KEY_UP]) {
+			step++;
+		}
+		if (input->key_pressed[AU_KEY_DOWN]) {
+			step--;
+		}
+		if (step != 0) {
+			// Typing in progress is committed first, then stepped from.
+			new_value = (self->input_active ? self->input_n : self->value) + step;
+			self->input_active = false;
+			if (self->wrap_around) {
+				new_value = span_wrap(new_value, self->min, self->max);
+			} else {
+				new_value = CLAMP(new_value, self->min, self->max);
+			}
 		}
 		bool move_next = input->key_pressed[AU_KEY_RIGHT];
 		bool move_prev = input->key_pressed[AU_KEY_LEFT];
@@ -1003,11 +1027,7 @@ bool number_select(Number_Select *self, Input_State *input, struct color_info *c
 		new_value = self->drag_start_value
 			+ (-(pos.y - self->drag_start_y) / (self->drag_pixels_per_value));
 		if (self->wrap_around) {
-			if (new_value < self->min) {
-				new_value = self->max + 1 - (self->min - new_value) % (self->max + 1 - self->min);
-			} else if (new_value > self->max) {
-				new_value = self->min + (new_value - self->min) % (self->max + 1 - self->min);
-			}
+			new_value = span_wrap(new_value, self->min, self->max);
 		} else {
 			new_value = CLAMP(new_value, self->min, self->max);
 			if (new_value == self->max || new_value == self->min) {
