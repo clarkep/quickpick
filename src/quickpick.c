@@ -505,8 +505,8 @@ struct color_info current_color(struct state *st)
 void write_color_to_file(struct state *st, Vector4 color)
 {
 	char color_text[10];
-	snprintf(color_text, 10, "%02x%02x%02x", (int)(color.x*255.0f), (int)(color.y*255.0f),
-		(int) (color.z*255.0f));
+	snprintf(color_text, 10, "%02x%02x%02x", (int)roundf(color.x*255.0f),
+		(int)roundf(color.y*255.0f), (int)roundf(color.z*255.0f));
 	FILE *f = fopen(st->outfile.path, "r+b");
 	if (!f)
 		fprintf(stderr, "Failed to open file: %s.\n", st->outfile.path);
@@ -1097,19 +1097,24 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 	}
 
 	if (input->mouse_pressed[AU_MOUSE_BUTTON_LEFT]) {
-		/*
-		** Most left mouse presses will result in some visible change to the screen, and we can't always
-		** reflect that change this frame. So, guarantee another frame is drawn after this one by setting
-		** animating = true. This is the lazy way: compared to setting animating = true in each branch
-		** where we definitely need it, we sometimes draw one extra frame we didn't need to. Compared to
-		** handling all input before all output, we sometimes cause one extra frame of latency.
-		*/
+		// Most left mouse presses will result in some visible change to the screen, and we can't always
+		// reflect that change this frame. So, guarantee another frame is drawn after this one by setting
+		// animating = true. This is the lazy way: compared to setting animating = true in each branch
+		// where we definitely need it, we sometimes draw one extra frame we didn't need to. Compared to
+		// handling all input before all output, we sometimes cause one extra frame of latency.
 		st->animating = true;
 	}
 
 	struct color_info ci = current_color(st);
 	Vector4 cur_color = ci.rgb;
 	Vector4 cur_hsv = ci.hsv;
+	// Round current_color to the 8-bit grid. This reflects the color that OpenGL would end up displaying
+	// anyway if we drew the unrounded color, but it avoids the possibility that it breaks a tie
+	// differently than roundf does, and the more likely possibility that I forget to round
+	// somewhere later on.
+	cur_color.x = roundf(cur_color.x * 255.0f) / 255.0f;
+	cur_color.y = roundf(cur_color.y * 255.0f) / 255.0f;
+	cur_color.z = roundf(cur_color.z * 255.0f) / 255.0f;
 	glClearColor(cur_color.x, cur_color.y, cur_color.z, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	float dpi = st->window->scale;
@@ -1435,19 +1440,20 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		static Number_Select r_num_select, g_num_select, b_num_select;
 		static Number_Select h_num_select, s_num_select, v_num_select;
 		bool rgb_num_select_changed = false;
-		r_num_select.value = cur_color.x * 255.0f;
+		// Already rounded, but yeah.
+		r_num_select.value = roundf(cur_color.x * 255.0f);
 		if (number_select_immargs(&r_num_select, "r:%d ", 0, 255, false, st, anim_vdt, r_select_x,
 			r_select_y, rgb_select_w, 30*scale, 800.0f / 256.0f, input, &ci,
 			&g_num_select, &v_num_select)) {
 			rgb_num_select_changed = true;
 		}
-		g_num_select.value = cur_color.y * 255.0f;
+		g_num_select.value = roundf(cur_color.y * 255.0f);
 		if (number_select_immargs(&g_num_select, "g:%d ", 0, 255, false, st, anim_vdt,
 			r_num_select.x+r_num_select.w, r_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
 			input, &ci, &b_num_select, &r_num_select)) {
 			rgb_num_select_changed = true;
 		}
-		b_num_select.value = cur_color.z * 255.0f;
+		b_num_select.value = roundf(cur_color.z * 255.0f);
 		if (number_select_immargs(&b_num_select, "b:%d ", 0, 255, false, st, anim_vdt,
 			g_num_select.x+g_num_select.w, g_num_select.y, rgb_select_w, 30*scale, 800.0f / 256.0f,
 			input, &ci, &h_num_select, &g_num_select)) {
@@ -1468,8 +1474,8 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		}
 		// hex label
 		char value[40];
-		sprintf(value, "hex:#%02x%02x%02x", (int)(cur_color.x*255.0f), (int)(cur_color.y*255.0f),
-			(int)(cur_color.z*255.0f));
+		sprintf(value, "hex:#%02x%02x%02x", (int)roundf(cur_color.x*255.0f),
+			(int)roundf(cur_color.y*255.0f), (int)roundf(cur_color.z*255.0f));
 		int hex_label_x = b_num_select.x + b_num_select.w;
 		int hex_label_y = r_num_select.y + r_num_select.h/2.0f + FONT_MEDIUM_PX*CENTER_EM;
 		add_text(st->main_scene, st->font, FONT_MEDIUM_PX, value, hex_label_x, hex_label_y,
@@ -1477,19 +1483,19 @@ void draw_ui_and_respond_input(struct state *st, Input_State *input)
 		// hsv number selectors
 		bool hsv_num_select_changed = false;
 		int hsv_select_w = 7*(st->medium_char_width + 1.5*scale);
-		h_num_select.value = cur_hsv.x * 360.0f;
+		h_num_select.value = (int)roundf(cur_hsv.x * 360.0f) % 360;
 		if (number_select_immargs(&h_num_select, "h:%d\xc2\xb0", 0, 359, true, st, anim_vdt,
 			r_num_select.x, r_num_select.y + 35*scale, hsv_select_w, 30*scale, 800.0f/360.0f,
 			input, &ci, &s_num_select, &b_num_select)) {
 			hsv_num_select_changed = true;
 		}
-		s_num_select.value = cur_hsv.y * 100.0f;
+		s_num_select.value = roundf(cur_hsv.y * 100.0f);
 		if (number_select_immargs(&s_num_select, "s:%d%% ", 0, 100, false, st, anim_vdt,
 			h_num_select.x+h_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
 			input, &ci, &v_num_select, &h_num_select)) {
 			hsv_num_select_changed = true;
 		}
-		v_num_select.value = cur_hsv.z * 100.0f;
+		v_num_select.value = roundf(cur_hsv.z * 100.0f);
 		if (number_select_immargs(&v_num_select, "v:%d%% ", 0, 100, false, st, anim_vdt,
 			s_num_select.x+s_num_select.w, h_num_select.y, hsv_select_w, 30*scale, 800.0f/100.0f,
 			input, &ci, &r_num_select, &s_num_select)) {
