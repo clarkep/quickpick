@@ -15,8 +15,16 @@ extern "C" {
 
 // 0xRRGGBBAA -> { r, g, b, a}
 Vector4 hex2vec(u32 hex);
-
 u32 vec2hex(Vector4 vector);
+
+// Color blending. c1: destination, c2: source. Colors are 0xAARRGGBB, unpremultiplied alpha.
+u32 au_alpha_blend(u32 c1, u32 c2);
+// fade_in multiplies source alpha.
+u32 au_alpha_blend_fade_in(u32 c1, u32 c2, float fade_in);
+u32 au_alpha_blend_u8_fade_in(u32 c1, u32 c2, u8 fade_in);
+
+// Linear interpolation from c1 to c2.
+u32 au_blend_colors(u32 c1, u32 c2, float p);
 
 // Create a child scene of parent. To this is and all Scene functions, you can pass a
 // Window * instead, cast to Scene *.
@@ -44,8 +52,6 @@ i32 load_font_from_memory(Scene *scene, const void *font_data, u64 data_size);
 //     "svg_alpha", which rasterzies the svg, only keeping the alpha channel
 //         -can be used with add_image_with_color
 i32 load_image(Scene *scene, const char *path, const char *type);
-
-float get_font_metric_descent(Scene *scene, i32 font_i);
 
 i32 load_image_from_memory(Scene *scene, const void *data, u64 data_size, const char *type);
 
@@ -108,6 +114,15 @@ float measure_text_width(Scene *scene, i32 font_i, i32 size, const char *text);
 float measure_text_widthf(Scene *scene, i32 font_i, i32 size, const char *fmt, ...);
 
 float measure_text_width_utf32(Scene *scene, i32 font_i, i32 size, const u32 *text);
+
+typedef struct font_metrics
+{
+	float ascent;
+	float descent;
+} Font_Metrics;
+
+// Returns unscaled font metrics. Multiply by the font size you are using.
+Font_Metrics au_font_get_metrics(Scene *scene, i32 font_i);
 
 void add_image(Scene *scene, i32 image_i, float x, float y);
 

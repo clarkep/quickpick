@@ -214,6 +214,7 @@ static void input_begin_frame(Input_State *input) {
 
 	memset(input->key_pressed,  0, sizeof(input->key_pressed));
 	memset(input->key_released, 0, sizeof(input->key_released));
+	memset(input->key_repeated, 0, sizeof(input->key_repeated));
 
 	input->pointer_dx = 0;
 	input->pointer_dy = 0;
@@ -288,8 +289,9 @@ static void input_handle_event(AU_SDL_Window *win, Input_State *input, const SDL
 		SDL_Scancode sc = e->key.scancode;
 		if (sc >= 0 && sc < SDL_SCANCODE_COUNT) {
 			enum au_key k = g_keycodes[sc];
-			if (!input->key_down[k])
-				input->key_pressed[k] = true;
+			input->key_pressed[k] = true;
+			if (e->key.repeat)
+				input->key_repeated[k] = true;
 			input->key_down[k] = true;
 
 			if (win->w.key_press_callback)

@@ -103,7 +103,6 @@ typedef struct input_state {
 	bool mouse_pressed[AU_MOUSE_BUTTON_COUNT];
 	bool mouse_released[AU_MOUSE_BUTTON_COUNT];
 	bool mouse_down[AU_MOUSE_BUTTON_COUNT];
-	// @Breaking was mouse_x, etc
 	i32 pointer_x, pointer_y;
 	i32 pointer_dx, pointer_dy;
 	// TODO: bool pointer_entered, pointer_left;
@@ -113,8 +112,8 @@ typedef struct input_state {
 	bool key_pressed[AU_KEY_COUNT];
 	bool key_released[AU_KEY_COUNT];
 	bool key_down[AU_KEY_COUNT];
-	// handles modifiers even if remapped
-//  	i32 mods;
+	// Key repeats set key_pressed and key_repeated.
+	bool key_repeated[AU_KEY_COUNT];
 	Char_Dynarray *text_entered;
 	u64 start_time;
 	// time in ticks from start_time, scaled by win->animation_rate

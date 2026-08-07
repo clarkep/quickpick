@@ -51,7 +51,7 @@ static Optional_U64 serialize_char_dynarray(Char_Dynarray *arr, u8 *out, u64 out
 	} else {
 		*((u64 *) out) = arr->length;
 		out += sizeof(u64);
-		memcpy(out, arr->d, arr->length * sizeof(u64));
+		memcpy(out, arr->d, arr->length);
 		return (Optional_U64) { sizeof(u64) + arr->length, true };
 	}
 }
@@ -73,7 +73,7 @@ static u64 input_state_max_serial_size(const Input_State *state)
 	u64 ret = 1 // flags
 		+ 3 * (sizeof(u16) + AU_MOUSE_BUTTON_COUNT / 8 + 1) // mouse arrays
 		+ sizeof(i32)*4 + sizeof(float)*2
-		+ 3 * (sizeof(u16) + AU_KEY_COUNT / 8 + 1) // key arrays
+		+ 4 * (sizeof(u16) + AU_KEY_COUNT / 8 + 1) // key arrays
 		+ sizeof(u64) + state->text_entered->length
 		+ sizeof(u64)*5 + sizeof(double)*2;
 	return ret;
@@ -125,8 +125,9 @@ static Optional_U64 input_state_serialize(const Input_State *input, u8 *buffer, 
 		return res;
 	}
 
-	const bool *key_bool_arrays[3] = { input->key_pressed, input->key_released, input->key_down };
-	for (i32 i=0; i<3; i++) {
+	const bool *key_bool_arrays[4] = { input->key_pressed, input->key_released, input->key_down,
+		input->key_repeated };
+	for (i32 i=0; i<4; i++) {
 		Optional_U64 len = serialize_bools(key_bool_arrays[i], AU_KEY_COUNT, p, remain);
 		if (len.some) {
 			p += len.val;
@@ -200,8 +201,9 @@ static Optional_U64 input_state_deserialize(const u8 *buffer, u64 buffer_size, I
 	input->wheel_dy = * (float *) p;
 	p += sizeof(float);
 
-	bool *key_bool_arrays[3] = { input->key_pressed, input->key_released, input->key_down };
-	for (i32 i=0; i<3; i++) {
+	bool *key_bool_arrays[4] = { input->key_pressed, input->key_released, input->key_down,
+		input->key_repeated };
+	for (i32 i=0; i<4; i++) {
 		Optional_U64 n = deserialize_bools(p, key_bool_arrays[i]);
 		if (!n.some)
 			return res;

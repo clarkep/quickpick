@@ -4,6 +4,157 @@
 #include "au_draw.h"
 #include "au_string.h"
 
+/************************************** Color blending *******************************************/
+
+static inline i32 au__div255(i32 x)
+{
+	return ((x+1) * 257) >> 16;
+}
+
+static inline u32 au__unpremul_u8(u32 cp, u32 a) {
+    if (a == 0) return 0;
+    i32 v = (cp * 255u + (a >> 1)) / a;
+    if (v > 255u) v = 255u;
+    return v;
+}
+
+// c1: destination. c2: source
+u32 au_alpha_blend(u32 c1, u32 c2)
+{
+	u32 c2a = c2 >> 24;
+	if (c2a == 255) {
+		return c2;
+	} else if (c2a == 0) {
+		return c1;
+	} else {
+		u32 c1a = c1 >> 24;
+		u32 c1r = (c1 >> 16) & 0xff;
+		u32 c1g = (c1 >> 8) & 0xff;
+		u32 c1b = c1 & 0xff;
+		// premultiply
+		c1r = au__div255(c1r * c1a);
+		c1g = au__div255(c1g * c1a);
+		c1b = au__div255(c1b * c1a);
+
+		u32 c2r = (c2 >> 16) & 0xff;
+		u32 c2g = (c2 >> 8) & 0xff;
+		u32 c2b = c2 & 0xff;
+		// premultiply
+		c2r = au__div255(c2r * c2a);
+		c2g = au__div255(c2g * c2a);
+		c2b = au__div255(c2b * c2a);
+
+		u32 ia = 255 - c2a;
+		u32 r = c2r + au__div255(c1r * ia);
+		u32 g = c2g + au__div255(c1g * ia);
+		u32 b = c2b + au__div255(c1b * ia);
+		u32 a = c2a + au__div255(c1a * ia);
+
+		r = au__unpremul_u8(r, a);
+		g = au__unpremul_u8(g, a);
+		b = au__unpremul_u8(b, a);
+		return (a << 24) | (r << 16) | (g << 8) | b;
+	}
+}
+
+// c1: destination. c2: source
+u32 au_alpha_blend_fade_in(u32 c1, u32 c2, float fade_in)
+{
+	i32 c2a = (c2 >> 24) * CLAMP(fade_in, 0.0f, 1.0f);
+	if (c2a == 255) {
+		return c2;
+	} else if (c2a == 0) {
+		return c1;
+	} else {
+		i32 c1a = (c1 >> 24);
+		i32 c1r = (c1 >> 16) & 0xff;
+		i32 c1g = (c1 >> 8) & 0xff;
+		i32 c1b = c1 & 0xff;
+		// premultiply
+		c1r = au__div255(c1r * c1a);
+		c1g = au__div255(c1g * c1a);
+		c1b = au__div255(c1b * c1a);
+
+		i32 c2r = (c2 >> 16) & 0xff;
+		i32 c2g = (c2 >> 8) & 0xff;
+		i32 c2b = c2 & 0xff;
+		// premultiply
+		c2r = au__div255(c2r * c2a);
+		c2g = au__div255(c2g * c2a);
+		c2b = au__div255(c2b * c2a);
+
+		i32 ia = 255 - c2a;
+		u32 r = c2r + au__div255(c1r * ia);
+		u32 g = c2g + au__div255(c1g * ia);
+		u32 b = c2b + au__div255(c1b * ia);
+		u32 a = c2a + au__div255(c1a * ia);
+
+		r = au__unpremul_u8(r, a);
+		g = au__unpremul_u8(g, a);
+		b = au__unpremul_u8(b, a);
+		return (a << 24) | (r << 16) | (g << 8) | b;
+	}
+}
+
+// c1: destination. c2: source
+u32 au_alpha_blend_u8_fade_in(u32 c1, u32 c2, u8 fade_in)
+{
+	i32 c2a = au__div255((c2 >> 24) * fade_in);
+	if (c2a == 255) {
+		return c2;
+	} else if (c2a == 0) {
+		return c1;
+	} else {
+		i32 c1a = (c1 >> 24);
+		i32 c1r = (c1 >> 16) & 0xff;
+		i32 c1g = (c1 >> 8) & 0xff;
+		i32 c1b = c1 & 0xff;
+		// premultiply
+		c1r = au__div255(c1r * c1a);
+		c1g = au__div255(c1g * c1a);
+		c1b = au__div255(c1b * c1a);
+
+		i32 c2r = (c2 >> 16) & 0xff;
+		i32 c2g = (c2 >> 8) & 0xff;
+		i32 c2b = c2 & 0xff;
+		// premultiply
+		c2r = au__div255(c2r * c2a);
+		c2g = au__div255(c2g * c2a);
+		c2b = au__div255(c2b * c2a);
+
+		i32 ia = 255 - c2a;
+		u32 r = c2r + au__div255(c1r * ia);
+		u32 g = c2g + au__div255(c1g * ia);
+		u32 b = c2b + au__div255(c1b * ia);
+		u32 a = c2a + au__div255(c1a * ia);
+
+		r = au__unpremul_u8(r, a);
+		g = au__unpremul_u8(g, a);
+		b = au__unpremul_u8(b, a);
+		return (a << 24) | (r << 16) | (g << 8) | b;
+	}
+}
+
+u32 au_blend_colors(u32 c1, u32 c2, float p)
+{
+	p = CLAMP(p, 0.0f, 1.0f);
+	u8 c1a = c1 >> 24;
+	u8 c1r = (c1 >> 16) & 0xff;
+	u8 c1g = (c1 >> 8) & 0xff;
+	u8 c1b = c1 & 0xff;
+	u8 c2a = c2 >> 24;
+	u8 c2r = (c2 >> 16) & 0xff;
+	u8 c2g = (c2 >> 8) & 0xff;
+	u8 c2b = c2 & 0xff;
+	u32 a = c1a * (1-p) + c2a*p + 0.5f;
+	u32 r = c1r * (1-p) + c2r*p + 0.5f;
+	u32 g = c1g * (1-p) + c2g*p + 0.5f;
+	u32 b = c1b * (1-p) + c2b*p + 0.5f;
+	return (a << 24) | (r << 16) | (g << 8) | b;
+}
+
+/************************************** Scene setup *******************************************/
+
 Scene *scene_create_child(Scene *parent, Arena *arena, float x, float y, float w, float h)
 {
 	Scene *scene = aalloc(arena, sizeof(Scene));

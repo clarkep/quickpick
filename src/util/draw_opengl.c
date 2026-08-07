@@ -926,11 +926,12 @@ i32 load_font_from_memory(Scene *scene, const void *font_data, u64 data_size)
 	return ret;
 }
 
-float font_get_metric_descent(Scene *scene, i32 font_i)
+Font_Metrics au_font_get_metrics(Scene *scene, i32 font_i)
 {
 	Render_Context *context = scene_get_context(scene);
 	FT_Face font = context->fonts[font_i]->ft_face;
-	return (float) font->descender / (float) font->units_per_EM;
+	return (Font_Metrics) { (float) font->ascender / (float) font->units_per_EM,
+	                        (float) font->descender / (float) font->units_per_EM };
 }
 
 static u8 *read_whole_file(Arena *arena, const char *path, u64 *data_size)
